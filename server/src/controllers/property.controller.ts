@@ -12,10 +12,7 @@ const s3Client = new S3Client({
   region: process.env.AWS_REGION,
 });
 
-export const getProperties = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const getProperties = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       favoriteIds,
@@ -150,10 +147,7 @@ export const getProperties = async (
   }
 };
 
-export const getProperty = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const getProperty = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const property = await prisma.property.findUnique({
@@ -190,10 +184,7 @@ export const getProperty = async (
   }
 };
 
-export const createProperty = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const createProperty = async (req: Request, res: Response): Promise<void> => {
   try {
     const files = req.files as Express.Multer.File[];
     const {
@@ -291,3 +282,5 @@ export const createProperty = async (
       .json({ message: `Error creating property: ${err.message}` });
   }
 };
+
+export { getProperties, getProperty, createProperty };

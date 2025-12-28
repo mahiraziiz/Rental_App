@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const getLeases = async (req: Request, res: Response): Promise<void> => {
+const getLeases = async (req: Request, res: Response): Promise<void> => {
   try {
     const leases = await prisma.lease.findMany({
       include: {
@@ -19,10 +19,7 @@ export const getLeases = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const getLeasePayments = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const getLeasePayments = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const payments = await prisma.payment.findMany({
@@ -37,3 +34,5 @@ export const getLeasePayments = async (
       .json({ message: `Error retrieving lease payments: ${error.message}` });
   }
 };
+
+export { getLeases, getLeasePayments };

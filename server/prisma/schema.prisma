@@ -63,6 +63,7 @@ enum PaymentStatus {
   Paid
   PartiallyPaid
   Overdue
+  Refunded
 }
 
 model Property {
@@ -81,11 +82,13 @@ model Property {
   baths             Float
   squareFeet        Int
   propertyType      PropertyType
-  postedDate        DateTime     @default(now())
+  isActive          Boolean      @default(true) // To soft delete properties
   averageRating     Float?       @default(0)
   numberOfReviews   Int?         @default(0)
   locationId        Int
   managerCognitoId  String
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   location     Location      @relation(fields: [locationId], references: [id])
   manager      Manager       @relation(fields: [managerCognitoId], references: [cognitoId])
@@ -99,8 +102,10 @@ model Manager {
   id          Int    @id @default(autoincrement())
   cognitoId   String @unique
   name        String
-  email       String
+  email       String @unique
   phoneNumber String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   managedProperties Property[]
 }
@@ -109,8 +114,10 @@ model Tenant {
   id          Int    @id @default(autoincrement())
   cognitoId   String @unique
   name        String
-  email       String
+  email       String @unique
   phoneNumber String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   properties   Property[]    @relation("TenantProperties")
   favorites    Property[]    @relation("TenantFavorites")
@@ -126,24 +133,24 @@ model Location {
   country     String
   postalCode  String
   coordinates Unsupported("geography(Point, 4326)")
+  createdAt   DateTime                              @default(now())
 
   properties Property[]
 }
 
 model Application {
   id              Int               @id @default(autoincrement())
-  applicationDate DateTime
-  status          ApplicationStatus
+  applicationDate DateTime          @default(now())
+  status          ApplicationStatus @default(Pending)
   propertyId      Int
   tenantCognitoId String
-  name            String
-  email           String
-  phoneNumber     String
   message         String?
   leaseId         Int?              @unique
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
-  property Property @relation(fields: [propertyId], references: [id])
-  tenant   Tenant   @relation(fields: [tenantCognitoId], references: [cognitoId])
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantCognitoId], references: [cognitoId], onDelete: Cascade)
   lease    Lease?   @relation(fields: [leaseId], references: [id])
 }
 
@@ -155,9 +162,12 @@ model Lease {
   deposit         Float
   propertyId      Int
   tenantCognitoId String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  property    Property     @relation(fields: [propertyId], references: [id])
-  tenant      Tenant       @relation(fields: [tenantCognitoId], references: [cognitoId])
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant      Tenant       @relation(fields: [tenantCognitoId], references: [cognitoId], onDelete: Cascade)
   application Application?
   payments    Payment[]
 }
@@ -165,11 +175,16 @@ model Lease {
 model Payment {
   id            Int           @id @default(autoincrement())
   amountDue     Float
-  amountPaid    Float
+  amountPaid    Float         @default(0)
   dueDate       DateTime
-  paymentDate   DateTime
-  paymentStatus PaymentStatus
+  paymentDate   DateTime?
+  paymentStatus PaymentStatus @default(Pending)
   leaseId       Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
-  lease Lease @relation(fields: [leaseId], references: [id])
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([leaseId, dueDate])
+  @@index([paymentStatus])
 }

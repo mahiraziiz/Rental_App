@@ -4,7 +4,7 @@ import { wktToGeoJSON } from "@terraformer/wkt";
 
 const prisma = new PrismaClient();
 
-export const getTenant = async (req: Request, res: Response): Promise<void> => {
+const getTenant = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cognitoId } = req.params;
     const tenant = await prisma.tenant.findUnique({
@@ -26,7 +26,7 @@ export const getTenant = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const createTenant = async (
+const createTenant = async (
   req: Request,
   res: Response
 ): Promise<void> => {
@@ -50,7 +50,7 @@ export const createTenant = async (
   }
 };
 
-export const updateTenant = async (
+const updateTenant = async (
   req: Request,
   res: Response
 ): Promise<void> => {
@@ -75,7 +75,7 @@ export const updateTenant = async (
   }
 };
 
-export const getCurrentResidences = async (
+const getCurrentResidences = async (
   req: Request,
   res: Response
 ): Promise<void> => {
@@ -118,7 +118,7 @@ export const getCurrentResidences = async (
   }
 };
 
-export const addFavoriteProperty = async (
+const addFavoriteProperty = async (
   req: Request,
   res: Response
 ): Promise<void> => {
@@ -158,7 +158,7 @@ export const addFavoriteProperty = async (
   }
 };
 
-export const removeFavoriteProperty = async (
+const removeFavoriteProperty = async (
   req: Request,
   res: Response
 ): Promise<void> => {
@@ -183,3 +183,12 @@ export const removeFavoriteProperty = async (
       .json({ message: `Error removing favorite property: ${err.message}` });
   }
 };
+
+export {
+  getTenant,
+  createTenant,
+  updateTenant,
+  getCurrentResidences,
+  addFavoriteProperty,
+  removeFavoriteProperty,
+}

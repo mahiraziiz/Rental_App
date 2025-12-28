@@ -4,10 +4,7 @@ import { wktToGeoJSON } from "@terraformer/wkt";
 
 const prisma = new PrismaClient();
 
-export const getManager = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const getManager = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cognitoId } = req.params;
     const manager = await prisma.manager.findUnique({
@@ -28,10 +25,7 @@ export const getManager = async (
   }
 };
 
-export const createManager = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const createManager = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cognitoId, name, email, phoneNumber } = req.body;
 
@@ -52,10 +46,7 @@ export const createManager = async (
   }
 };
 
-export const updateManager = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const updateManager = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cognitoId } = req.params;
     const { name, email, phoneNumber } = req.body;
@@ -79,7 +70,7 @@ export const updateManager = async (
   }
 };
 
-export const getManagerProperties = async (
+const getManagerProperties = async (
   req: Request,
   res: Response
 ): Promise<void> => {
@@ -123,3 +114,5 @@ export const getManagerProperties = async (
       .json({ message: `Error retrieving manager properties: ${err.message}` });
   }
 };
+
+export { getManager, createManager, updateManager, getManagerProperties };
