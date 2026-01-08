@@ -141,9 +141,6 @@ const createApplication = async (
         data: {
           applicationDate: new Date(applicationDate),
           status,
-          name,
-          email,
-          phoneNumber,
           message,
           property: {
             connect: {

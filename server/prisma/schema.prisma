@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  url        = env("DATABASE_URL")
   extensions = [postgis]
 }
 
@@ -99,10 +98,10 @@ model Property {
 }
 
 model Manager {
-  id          Int    @id @default(autoincrement())
-  cognitoId   String @unique
+  id          Int      @id @default(autoincrement())
+  cognitoId   String   @unique
   name        String
-  email       String @unique
+  email       String   @unique
   phoneNumber String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -111,10 +110,10 @@ model Manager {
 }
 
 model Tenant {
-  id          Int    @id @default(autoincrement())
-  cognitoId   String @unique
+  id          Int      @id @default(autoincrement())
+  cognitoId   String   @unique
   name        String
-  email       String @unique
+  email       String   @unique
   phoneNumber String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
