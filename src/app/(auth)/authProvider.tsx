@@ -1,13 +1,16 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Amplify } from "aws-amplify";
 
 import {
   Authenticator,
   Heading,
+  Radio,
+  RadioGroupField,
   useAuthenticator,
   View,
 } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
+import { useRouter, usePathname } from "next/navigation";
 
 Amplify.configure({
   Auth: {
@@ -47,6 +50,43 @@ const components = {
               onClick={toSignUp}
             >
               Sign Up
+            </button>
+          </p>
+        </View>
+      );
+    },
+  },
+  SignUp: {
+    FormFields() {
+      const { validationErrors } = useAuthenticator();
+
+      return (
+        <>
+          <Authenticator.SignUp.FormFields />
+          <RadioGroupField
+            legend="Role"
+            name="custom:role"
+            errorMessage={validationErrors["custom:role"]}
+            hasError={!!validationErrors["custom:role"]}
+            isRequired
+          >
+            <Radio value="tenant">Renter</Radio>
+            <Radio value="landlord">Property Owner</Radio>
+          </RadioGroupField>
+        </>
+      );
+    },
+    Footer() {
+      const { toSignIn } = useAuthenticator();
+      return (
+        <View className="text-center mt-4">
+          <p className="text-muted-foreground">
+            Already have an account?{" "}
+            <button
+              className="text-primary-500 hover:underline font-medium bg-transparent border-0 p-0 ml-1 cursor-pointer"
+              onClick={toSignIn}
+            >
+              Sign In
             </button>
           </p>
         </View>
@@ -98,9 +138,35 @@ const formFields = {
 };
 
 const Auth = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuthenticator((context) => [context.user]);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const isAuthPage = pathname.match(/^\/(signin|signup)$/);
+  const isDashboardPage =
+    pathname.startsWith("/landlord") || pathname.startsWith("/tenant");
+
+  // Redirect authenticated users away from auth pages
+  useEffect(() => {
+    if (user && isAuthPage) {
+      router.push("/"); // Redirect to home or dashboard
+    }
+  }, [user, isAuthPage, router]);
+
+  // Allow access to auth pages only for unauthenticated users
+  useEffect(() => {
+    if (!user && isDashboardPage) {
+      router.push("/signin"); // Redirect to sign-in page
+    }
+  }, [user, isDashboardPage, router]);
+
   return (
     <div className="h-full">
-      <Authenticator formFields={formFields} components={components}>
+      <Authenticator
+        initialState={pathname === "/signup" ? "signUp" : "signIn"}
+        formFields={formFields}
+        components={components}
+      >
         {() => <> {children} </>}
       </Authenticator>
     </div>
