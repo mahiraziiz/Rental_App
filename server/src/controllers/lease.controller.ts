@@ -15,7 +15,7 @@ const getLeases = async (req: Request, res: Response): Promise<void> => {
       .status(500)
       .json({ message: `Error retrieving leases: ${error.message}` });
   }
-};
+}; 
 
 const getLeasePayments = async (req: Request, res: Response): Promise<void> => {
   try {
