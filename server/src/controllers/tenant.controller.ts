@@ -1,8 +1,6 @@
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../config/database";
 import { wktToGeoJSON } from "@terraformer/wkt";
-
-const prisma = new PrismaClient();
 
 const getTenant = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -26,10 +24,7 @@ const getTenant = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-const createTenant = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const createTenant = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cognitoId, name, email, phoneNumber } = req.body;
 
@@ -50,10 +45,7 @@ const createTenant = async (
   }
 };
 
-const updateTenant = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+const updateTenant = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cognitoId } = req.params;
     const { name, email, phoneNumber } = req.body;
@@ -77,7 +69,7 @@ const updateTenant = async (
 
 const getCurrentResidences = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const { cognitoId } = req.params;
@@ -107,7 +99,7 @@ const getCurrentResidences = async (
             },
           },
         };
-      })
+      }),
     );
 
     res.json(residencesWithFormattedLocation);
@@ -120,7 +112,7 @@ const getCurrentResidences = async (
 
 const addFavoriteProperty = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const { cognitoId, propertyId } = req.params;
@@ -160,7 +152,7 @@ const addFavoriteProperty = async (
 
 const removeFavoriteProperty = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const { cognitoId, propertyId } = req.params;
@@ -191,4 +183,4 @@ export {
   getCurrentResidences,
   addFavoriteProperty,
   removeFavoriteProperty,
-}
+};

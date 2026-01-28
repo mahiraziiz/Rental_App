@@ -1,0 +1,7 @@
+{
+  // Automatically kill terminal processes when VS Code closes
+  "terminal.integrated.enablePersistentSessions": false,
+  
+  // Alternative: prompt to kill processes on exit
+  "terminal.integrated.confirmOnExit": "always"
+}

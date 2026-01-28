@@ -18,7 +18,7 @@ router.post(
   "/",
   authMiddleware(["manager"]),
   upload.array("photos"),
-  createProperty
+  createProperty,
 );
 
 export default router;
