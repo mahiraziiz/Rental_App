@@ -71,7 +71,7 @@ const listApplications = async (req: Request, res: Response): Promise<void> => {
               }
             : null,
         };
-      })
+      }),
     );
 
     res.json(formattedApplications);
@@ -84,7 +84,7 @@ const listApplications = async (req: Request, res: Response): Promise<void> => {
 
 const createApplication = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const {
@@ -117,7 +117,7 @@ const createApplication = async (
         data: {
           startDate: new Date(), // Today
           endDate: new Date(
-            new Date().setFullYear(new Date().getFullYear() + 1)
+            new Date().setFullYear(new Date().getFullYear() + 1),
           ), // 1 year from today
           rent: property.pricePerMonth,
           deposit: property.securityDeposit,
@@ -176,7 +176,7 @@ const createApplication = async (
 
 const updateApplicationStatus = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const { id } = req.params;
@@ -203,7 +203,7 @@ const updateApplicationStatus = async (
         data: {
           startDate: new Date(),
           endDate: new Date(
-            new Date().setFullYear(new Date().getFullYear() + 1)
+            new Date().setFullYear(new Date().getFullYear() + 1),
           ),
           rent: application.property.pricePerMonth,
           deposit: application.property.securityDeposit,
