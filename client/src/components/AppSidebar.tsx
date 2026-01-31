@@ -62,7 +62,7 @@ const AppSidebar = ({ userType }: AppSidebarProps) => {
           <SidebarMenuItem>
             <div
               className={cn(
-                "flex min-h-[56px] w-full items-center pt-3 mb-3",
+                "flex min-h-14 w-full items-center pt-3 mb-3",
                 open ? "justify-between px-6" : "justify-center",
               )}
             >
@@ -105,7 +105,7 @@ const AppSidebar = ({ userType }: AppSidebarProps) => {
                     isActive
                       ? "bg-gray-100"
                       : "text-gray-600 hover:bg-gray-100",
-                    open ? "text-blue-600" : "ml-[5px]",
+                    open ? "text-blue-600" : "ml-1.25",
                   )}
                 >
                   <Link href={link.href} className="w-full" scroll={false}>

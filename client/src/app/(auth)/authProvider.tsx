@@ -15,7 +15,6 @@ import { useRouter, usePathname } from "next/navigation";
 Amplify.configure({
   Auth: {
     Cognito: {
-      region: "us-east-1",
       userPoolId: process.env.NEXT_PUBLIC_AWS_COGNITO_USER_POOL_ID as string,
       userPoolClientId: process.env
         .NEXT_PUBLIC_AWS_COGNITO_USER_POOL_CLIENT_ID as string,
