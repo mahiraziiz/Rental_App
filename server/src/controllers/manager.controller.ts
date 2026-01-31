@@ -70,7 +70,7 @@ const updateManager = async (req: Request, res: Response): Promise<void> => {
 
 const getManagerProperties = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const { cognitoId } = req.params;
@@ -102,7 +102,7 @@ const getManagerProperties = async (
             },
           },
         };
-      })
+      }),
     );
 
     res.json(propertiesWithFormattedLocation);

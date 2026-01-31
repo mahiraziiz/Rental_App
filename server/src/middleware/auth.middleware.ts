@@ -17,7 +17,7 @@ export const authMiddleware = (allowedRoles: string[] = []) => {
 
       const decoded = jwt.verify(
         token,
-        process.env.JWT_SECRET || "your-secret-key"
+        process.env.JWT_SECRET || "your-secret-key",
       ) as any;
 
       // Check if user has required role

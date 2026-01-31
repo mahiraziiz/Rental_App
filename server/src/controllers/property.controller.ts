@@ -33,19 +33,19 @@ const getProperties = async (req: Request, res: Response): Promise<void> => {
     if (favoriteIds) {
       const favoriteIdsArray = (favoriteIds as string).split(",").map(Number);
       whereConditions.push(
-        Prisma.sql`p.id IN (${Prisma.join(favoriteIdsArray)})`
+        Prisma.sql`p.id IN (${Prisma.join(favoriteIdsArray)})`,
       );
     }
 
     if (priceMin) {
       whereConditions.push(
-        Prisma.sql`p."pricePerMonth" >= ${Number(priceMin)}`
+        Prisma.sql`p."pricePerMonth" >= ${Number(priceMin)}`,
       );
     }
 
     if (priceMax) {
       whereConditions.push(
-        Prisma.sql`p."pricePerMonth" <= ${Number(priceMax)}`
+        Prisma.sql`p."pricePerMonth" <= ${Number(priceMax)}`,
       );
     }
 
@@ -59,19 +59,19 @@ const getProperties = async (req: Request, res: Response): Promise<void> => {
 
     if (squareFeetMin) {
       whereConditions.push(
-        Prisma.sql`p."squareFeet" >= ${Number(squareFeetMin)}`
+        Prisma.sql`p."squareFeet" >= ${Number(squareFeetMin)}`,
       );
     }
 
     if (squareFeetMax) {
       whereConditions.push(
-        Prisma.sql`p."squareFeet" <= ${Number(squareFeetMax)}`
+        Prisma.sql`p."squareFeet" <= ${Number(squareFeetMax)}`,
       );
     }
 
     if (propertyType && propertyType !== "any") {
       whereConditions.push(
-        Prisma.sql`p."propertyType" = ${propertyType}::"PropertyType"`
+        Prisma.sql`p."propertyType" = ${propertyType}::"PropertyType"`,
       );
     }
 
@@ -91,7 +91,7 @@ const getProperties = async (req: Request, res: Response): Promise<void> => {
               SELECT 1 FROM "Lease" l 
               WHERE l."propertyId" = p.id 
               AND l."startDate" <= ${date.toISOString()}
-            )`
+            )`,
           );
         }
       }
@@ -108,7 +108,7 @@ const getProperties = async (req: Request, res: Response): Promise<void> => {
           l.coordinates::geometry,
           ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),
           ${degrees}
-        )`
+        )`,
       );
     }
 
@@ -211,7 +211,7 @@ const createProperty = async (req: Request, res: Response): Promise<void> => {
         }).done();
 
         return uploadResult.Location;
-      })
+      }),
     );
 
     const geocodingUrl = `https://nominatim.openstreetmap.org/search?${new URLSearchParams(
@@ -222,7 +222,7 @@ const createProperty = async (req: Request, res: Response): Promise<void> => {
         postalcode: postalCode,
         format: "json",
         limit: "1",
-      }
+      },
     ).toString()}`;
     const geocodingResponse = await axios.get(geocodingUrl, {
       headers: {
