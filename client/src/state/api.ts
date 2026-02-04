@@ -69,8 +69,9 @@ export const api = createApi({
               userRole,
             },
           };
-        } catch (error: any) {
-          return { error: error.message || "Could not fetch user data" };
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Could not fetch user data";
+          return { error: message };
         }
       },
     }),

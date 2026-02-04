@@ -43,9 +43,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
         <div style={{ marginTop: `${NAVBAR_HEIGHT}px` }}>
           <main className="flex">
             <Sidebar userType={authUser.userRole.toLowerCase()} />
-            <div className="grow transition-all duration-300">
-              {children}
-            </div>
+            <div className="grow transition-all duration-300">{children}</div>
           </main>
         </div>
       </div>
