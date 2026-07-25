@@ -7,6 +7,7 @@ import morgan from "morgan";
 import { authMiddleware } from "./middleware/auth.middleware";
 
 /* ROUTE IMPORT */
+import authRoutes from "./routes/auth.routes";
 import tenantRoutes from "./routes/tenant.routes";
 import managerRoutes from "./routes/manager.routes";
 import propertyRoutes from "./routes/property.routes";
@@ -29,6 +30,7 @@ app.get("/", (req, res) => {
   res.send("This is home route");
 });
 
+app.use("/auth", authRoutes);
 app.use("/applications", applicationRoutes);
 app.use("/properties", propertyRoutes);
 app.use("/leases", leaseRoutes);

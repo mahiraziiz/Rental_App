@@ -2,7 +2,7 @@
 
 import { NAVBAR_HEIGHT } from "@/lib/constants";
 import { useGetApplicationsQuery, useGetAuthUserQuery } from "@/state/api";
-import { signOut } from "aws-amplify/auth";
+import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ import { SidebarTrigger } from "./ui/sidebar";
 
 const Navbar = () => {
   const { data: authUser } = useGetAuthUserQuery();
+  const { logout } = useAuth(); // Use our custom logout instead of AWS signOut
   const router = useRouter();
   const pathname = usePathname();
   const userRole = authUser?.userRole?.toLowerCase();
@@ -69,8 +70,8 @@ const Navbar = () => {
     pathname.includes("/managers") || pathname.includes("/tenants");
 
   const handleSignOut = async () => {
-    await signOut();
-    window.location.href = "/";
+    await logout(); // Use our custom logout function
+    // No need for window.location.href as logout handles redirect
   };
 
   return (
@@ -178,7 +179,9 @@ const Navbar = () => {
                       <DropdownMenuItem
                         key={notification.id}
                         className="cursor-pointer py-3 px-2 hover:bg-primary-100!"
-                        onClick={() => router.push(notification.href, { scroll: false })}
+                        onClick={() =>
+                          router.push(notification.href, { scroll: false })
+                        }
                       >
                         <div className="flex flex-col gap-1">
                           <span className="text-sm font-semibold text-primary-800">
@@ -243,7 +246,7 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              <Link href="/signin">
+              <Link href="/login">
                 <Button
                   variant="outline"
                   className="text-white border-white bg-transparent hover:bg-white hover:text-primary-700 rounded-lg"
@@ -251,7 +254,7 @@ const Navbar = () => {
                   Sign In
                 </Button>
               </Link>
-              <Link href="/signup">
+              <Link href="/register">
                 <Button
                   variant="secondary"
                   className="text-white bg-secondary-600 hover:bg-white hover:text-primary-700 rounded-lg"

@@ -81,7 +81,7 @@ async function deleteAllData(orderedFileNames: string[]): Promise<void> {
       // If deleteMany fails due to foreign key constraints, try raw SQL
       try {
         await prisma.$executeRaw`DELETE FROM ${Prisma.raw(
-          `"${modelName}"`
+          `"${modelName}"`,
         )} CASCADE;`;
         console.log(`Cleared data from ${modelName} using CASCADE`);
       } catch (sqlError) {
@@ -103,21 +103,23 @@ async function seedModel(modelName: string, data: any[]): Promise<void> {
   try {
     // Remove fields with default values or that don't exist in schema
     let processedData = data;
-    
-    if (modelName === 'Property') {
+
+    if (modelName === "Property") {
       processedData = data.map(({ postedDate, ...rest }) => rest);
-    } else if (modelName === 'Application') {
-      processedData = data.map(({ name, email, phoneNumber, applicationDate, ...rest }) => rest);
-    } else if (modelName === 'Payment') {
+    } else if (modelName === "Application") {
+      processedData = data.map(
+        ({ name, email, phoneNumber, applicationDate, ...rest }) => rest,
+      );
+    } else if (modelName === "Payment") {
       processedData = data.map(({ lease, ...rest }) => ({
         ...rest,
-        leaseId: lease?.connect?.id
+        leaseId: lease?.connect?.id,
       }));
     }
 
     // Tenant has relations, so we need to use individual creates
     // createMany doesn't support nested relations
-    if (modelName === 'Tenant') {
+    if (modelName === "Tenant") {
       for (const item of processedData) {
         await model.create({
           data: item,
@@ -146,10 +148,10 @@ async function seedModel(modelName: string, data: any[]): Promise<void> {
 
 async function linkTenantsToProperties(leases: any[]): Promise<void> {
   console.log("\nLinking tenants to properties...");
-  
+
   // Group leases by property to see which tenants belong to which property
   const propertyTenantMap = new Map<number, Set<string>>();
-  
+
   for (const lease of leases) {
     if (!propertyTenantMap.has(lease.propertyId)) {
       propertyTenantMap.set(lease.propertyId, new Set());
@@ -167,7 +169,9 @@ async function linkTenantsToProperties(leases: any[]): Promise<void> {
         });
 
         if (!tenant) {
-          console.warn(`Tenant with cognitoId ${cognitoId} not found, skipping...`);
+          console.warn(
+            `Tenant with cognitoId ${cognitoId} not found, skipping...`,
+          );
           continue;
         }
 
@@ -229,7 +233,7 @@ async function main(): Promise<void> {
       }
 
       const modelName = toPascalCase(
-        path.basename(fileName, path.extname(fileName))
+        path.basename(fileName, path.extname(fileName)),
       );
 
       console.log(`\nSeeding ${modelName} from ${fileName}...`);

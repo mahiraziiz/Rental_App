@@ -8,17 +8,16 @@ import {
   Tenant,
 } from "@/types/prismaTypes";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { FiltersState } from ".";
 
 export const api = createApi({
   baseQuery: fetchBaseQuery({
     baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
     prepareHeaders: async (headers) => {
-      const session = await fetchAuthSession();
-      const { idToken } = session.tokens ?? {};
-      if (idToken) {
-        headers.set("Authorization", `Bearer ${idToken}`);
+      // Get token from localStorage instead of AWS Cognito
+      const token = localStorage.getItem("token");
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
       }
       return headers;
     },
@@ -32,20 +31,45 @@ export const api = createApi({
     "Leases",
     "Payments",
     "Applications",
+    "Auth",
   ],
   endpoints: (build) => ({
     getAuthUser: build.query<User, void>({
       queryFn: async (_, _queryApi, _extraoptions, fetchWithBQ) => {
         try {
-          const session = await fetchAuthSession();
-          const { idToken } = session.tokens ?? {};
-          const user = await getCurrentUser();
-          const userRole = idToken?.payload["custom:role"] as string;
+          // Get user from our backend instead of AWS Cognito
+          const token = localStorage.getItem("token");
+          if (!token) {
+            return {
+              error: {
+                status: "CUSTOM_ERROR" as const,
+                error: "No token found",
+                data: undefined,
+              },
+            };
+          }
 
+          const response = await fetchWithBQ("/auth/me");
+
+          if (response.error) {
+            return {
+              error: {
+                status: "CUSTOM_ERROR" as const,
+                error: "Could not fetch user data",
+                data: undefined,
+              },
+            };
+          }
+
+          const userData = response.data as { data: User };
+          const user = userData.data;
+
+          // Determine user role and fetch corresponding profile
+          const userRole = user.role;
           const endpoint =
             userRole === "manager"
-              ? `/managers/${user.userId}`
-              : `/tenants/${user.userId}`;
+              ? `/managers/${user.id}`
+              : `/tenants/${user.id}`;
 
           let userDetailsResponse = await fetchWithBQ(endpoint);
 
@@ -55,8 +79,15 @@ export const api = createApi({
             userDetailsResponse.error.status === 404
           ) {
             userDetailsResponse = await createNewUserInDatabase(
-              user as unknown as Record<string, unknown>,
-              (idToken as unknown as Record<string, unknown>) || "",
+              {
+                userId: user.id,
+                email: user.email,
+                name: user.name,
+              } as unknown as Record<string, unknown>,
+              { email: user.email, name: user.name } as unknown as Record<
+                string,
+                unknown
+              >,
               userRole,
               fetchWithBQ,
             );
@@ -64,7 +95,11 @@ export const api = createApi({
 
           return {
             data: {
-              cognitoInfo: { ...user },
+              cognitoInfo: {
+                userId: user.id,
+                username: user.email,
+                signInDetails: { loginId: user.email },
+              },
               userInfo: userDetailsResponse.data as Tenant | Manager,
               userRole,
             },
@@ -83,6 +118,7 @@ export const api = createApi({
           };
         }
       },
+      providesTags: ["Auth"],
     }),
 
     // property related endpoints

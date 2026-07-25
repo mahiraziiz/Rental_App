@@ -6,23 +6,31 @@ import {
   useGetAuthUserQuery,
   useUpdateManagerSettingsMutation,
 } from "@/state/api";
-import { signOut } from "aws-amplify/auth";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useMemo } from "react";
 
 const ManagerSettings = () => {
   const { data: authUser, isLoading } = useGetAuthUserQuery();
   const [updateManager] = useUpdateManagerSettingsMutation();
   const [deleteManagerAccount] = useDeleteManagerAccountMutation();
+  const { logout } = useAuth();
   const router = useRouter();
 
-  if (isLoading) return <>Loading...</>;
+  const initialData = useMemo(
+    () => ({
+      name: authUser?.userInfo?.name ?? "",
+      email: authUser?.userInfo?.email ?? "",
+      phoneNumber: authUser?.userInfo?.phoneNumber ?? "",
+    }),
+    [
+      authUser?.userInfo?.name,
+      authUser?.userInfo?.email,
+      authUser?.userInfo?.phoneNumber,
+    ],
+  );
 
-  const initialData = {
-    name: authUser?.userInfo.name,
-    email: authUser?.userInfo.email,
-    phoneNumber: authUser?.userInfo.phoneNumber,
-  };
+  if (isLoading || !authUser) return <>Loading...</>;
 
   const handleSubmit = async (data: typeof initialData) => {
     await updateManager({
@@ -33,10 +41,10 @@ const ManagerSettings = () => {
 
   const handleDeleteAccount = async () => {
     await deleteManagerAccount({
-      cognitoId: authUser!.cognitoInfo.userId,
+      cognitoId: authUser.cognitoInfo.userId,
     }).unwrap();
-    await signOut();
-    router.replace("/signin");
+    await logout();
+    router.replace("/login");
   };
 
   return (

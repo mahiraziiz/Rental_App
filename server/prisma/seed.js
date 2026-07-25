@@ -44,7 +44,7 @@ async function resetSequence(modelName) {
     // Get max ID using raw query
     const result =
       await prisma.$queryRaw`SELECT MAX(id) as max_id FROM ${client_1.Prisma.raw(
-        quotedModelName
+        quotedModelName,
       )}`;
     const maxId = result[0]?.max_id || 0;
     const nextId = maxId + 1;
@@ -59,7 +59,7 @@ async function resetSequence(modelName) {
 async function deleteAllData(orderedFileNames) {
   const modelNames = orderedFileNames.map((fileName) => {
     return toPascalCase(
-      path_1.default.basename(fileName, path_1.default.extname(fileName))
+      path_1.default.basename(fileName, path_1.default.extname(fileName)),
     );
   });
 
@@ -70,7 +70,7 @@ async function deleteAllData(orderedFileNames) {
     try {
       // Try raw SQL with CASCADE first
       await prisma.$executeRaw`DELETE FROM ${client_1.Prisma.raw(
-        `"${modelName}"`
+        `"${modelName}"`,
       )} CASCADE`;
       console.log(`Cleared data from ${modelName} using CASCADE`);
     } catch (error) {
@@ -114,7 +114,7 @@ async function main() {
       }
 
       const modelName = toPascalCase(
-        path_1.default.basename(fileName, path_1.default.extname(fileName))
+        path_1.default.basename(fileName, path_1.default.extname(fileName)),
       );
       const modelNameCamel = toCamelCase(modelName);
 
@@ -129,7 +129,7 @@ async function main() {
 
         if (!model || !model.create) {
           console.error(
-            `Model ${modelName} not found or doesn't have create method`
+            `Model ${modelName} not found or doesn't have create method`,
           );
           continue;
         }

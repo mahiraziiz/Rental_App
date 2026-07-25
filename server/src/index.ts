@@ -6,7 +6,7 @@ dotenv.config({
   path: path.resolve(__dirname, "../.env"),
 });
 
-import app from "./app";
+import app from "./server";
 import prisma from "./db/index";
 
 const PORT = Number(process.env.PORT) || 3002;

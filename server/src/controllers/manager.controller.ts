@@ -1,13 +1,31 @@
 import { Request, Response } from "express";
 import { wktToGeoJSON } from "@terraformer/wkt";
-import prisma from "../db/index";
+import prisma from "../db";
+import { AuthRequest } from "../middleware/auth.middleware";
 
+// Helper to safely get string from params
+const getParamString = (
+  param: string | string[] | undefined,
+): string | undefined => {
+  if (typeof param === "string") return param;
+  if (Array.isArray(param) && param.length > 0) return param[0];
+  return undefined;
+};
+
+// Get manager by ID (using user ID instead of cognitoId)
 const getManager = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { cognitoId } = req.params;
+    const { id } = req.params;
+    const managerId = getParamString(id);
+
+    if (!managerId) {
+      res.status(400).json({ message: "Invalid manager ID" });
+      return;
+    }
+
     const manager = await prisma.manager.findUnique({
       where: {
-        cognitoId,
+        cognitoId: managerId,
       },
     });
 
@@ -23,9 +41,25 @@ const getManager = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Create manager profile
 const createManager = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cognitoId, name, email, phoneNumber } = req.body;
+
+    if (!cognitoId) {
+      res.status(400).json({ message: "cognitoId is required" });
+      return;
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: cognitoId },
+    });
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
 
     const manager = await prisma.manager.create({
       data: {
@@ -44,14 +78,22 @@ const createManager = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Update manager
 const updateManager = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { cognitoId } = req.params;
+    const { id } = req.params;
+    const managerId = getParamString(id);
+
+    if (!managerId) {
+      res.status(400).json({ message: "Invalid manager ID" });
+      return;
+    }
+
     const { name, email, phoneNumber } = req.body;
 
-    const updateManager = await prisma.manager.update({
+    const updatedManager = await prisma.manager.update({
       where: {
-        cognitoId,
+        cognitoId: managerId,
       },
       data: {
         name,
@@ -60,7 +102,7 @@ const updateManager = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    res.json(updateManager);
+    res.json(updatedManager);
   } catch (error: any) {
     res.status(500).json({
       message: `Error updating manager: ${error.message}`,
@@ -68,12 +110,20 @@ const updateManager = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Delete manager (also delete the associated user)
 const deleteManager = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { cognitoId } = req.params;
+    const { id } = req.params;
+    const managerId = getParamString(id);
 
+    if (!managerId) {
+      res.status(400).json({ message: "Invalid manager ID" });
+      return;
+    }
+
+    // Get manager with properties
     const manager = await prisma.manager.findUnique({
-      where: { cognitoId },
+      where: { cognitoId: managerId },
       include: {
         managedProperties: { select: { id: true } },
       },
@@ -84,7 +134,7 @@ const deleteManager = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (manager.managedProperties.length > 0) {
+    if (manager.managedProperties && manager.managedProperties.length > 0) {
       res.status(400).json({
         message:
           "Cannot delete manager account while properties are still assigned. Remove or transfer properties first.",
@@ -92,9 +142,15 @@ const deleteManager = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    await prisma.manager.delete({
-      where: { cognitoId },
-    });
+    // Delete manager and associated user
+    await prisma.$transaction([
+      prisma.manager.delete({
+        where: { cognitoId: managerId },
+      }),
+      prisma.user.delete({
+        where: { id: managerId },
+      }),
+    ]);
 
     res.json({ message: "Manager account deleted successfully" });
   } catch (error: any) {
@@ -104,15 +160,23 @@ const deleteManager = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Get manager properties
 const getManagerProperties = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const { cognitoId } = req.params;
+    const { id } = req.params;
+    const managerId = getParamString(id);
+
+    if (!managerId) {
+      res.status(400).json({ message: "Invalid manager ID" });
+      return;
+    }
+
     const properties = await prisma.property.findMany({
       where: {
-        managerCognitoId: cognitoId,
+        managerCognitoId: managerId,
       },
       include: {
         location: true,
@@ -120,9 +184,10 @@ const getManagerProperties = async (
     });
 
     const propertiesWithFormattedLocation = await Promise.all(
-      properties.map(async (property: (typeof properties)[number]) => {
+      properties.map(async (property) => {
+        // Use locationId instead of location.id
         const coordinates: { coordinates: string }[] =
-          await prisma.$queryRaw`SELECT ST_asText(coordinates) as coordinates from "Location" where id = ${property.location.id}`;
+          await prisma.$queryRaw`SELECT ST_asText(coordinates) as coordinates from "Location" where id = ${property.locationId}`;
 
         const geoJSON: any = wktToGeoJSON(coordinates[0]?.coordinates || "");
         const longitude = geoJSON.coordinates[0];

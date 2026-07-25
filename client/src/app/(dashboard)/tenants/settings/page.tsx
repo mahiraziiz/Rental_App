@@ -6,7 +6,7 @@ import {
   useGetAuthUserQuery,
   useUpdateTenantSettingsMutation,
 } from "@/state/api";
-import { signOut } from "aws-amplify/auth";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import React, { useMemo } from "react";
 
@@ -14,6 +14,7 @@ const TenantSettings = () => {
   const { data: authUser, isLoading } = useGetAuthUserQuery();
   const [updateTenant] = useUpdateTenantSettingsMutation();
   const [deleteTenantAccount] = useDeleteTenantAccountMutation();
+  const { logout } = useAuth();
   const router = useRouter();
 
   const initialData = useMemo(
@@ -42,8 +43,9 @@ const TenantSettings = () => {
     await deleteTenantAccount({
       cognitoId: authUser.cognitoInfo.userId,
     }).unwrap();
-    await signOut();
-    router.replace("/signin");
+    // Use our custom logout instead of AWS signOut
+    await logout();
+    router.replace("/login"); // Redirect to login page
   };
 
   return (

@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 
 export interface AuthRequest extends Request {
-  user?: any;
+  user?: {
+    id: string;
+    email: string;
+    role: string;
+    cognitoId?: string; // Keep for backward compatibility
+  };
 }
 
 export const authMiddleware = (allowedRoles: string[] = []) => {
@@ -15,48 +20,61 @@ export const authMiddleware = (allowedRoles: string[] = []) => {
         return;
       }
 
-      // For development: Check if token looks like AWS Cognito token (longer, different structure)
-      // AWS Cognito tokens have different parts and can't be verified locally
-      if (token.split(".").length === 3) {
-        try {
-          // Try local JWT verification first (for locally generated tokens)
-          const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET || "your-secret-key",
-          ) as JwtPayload;
+      // Verify JWT token
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "your-secret-key",
+      ) as JwtPayload;
 
-          // Check if user has required role
-          if (
-            allowedRoles.length > 0 &&
-            decoded.role &&
-            !allowedRoles.includes(decoded.role as string)
-          ) {
-            res.status(403).json({ error: "Insufficient permissions" });
-            return;
-          }
-
-          req.user = decoded;
-          next();
-        } catch (error) {
-          // If local verification fails, assume it's a Cognito token
-          // For development, we'll accept Cognito tokens without verification
-          console.log("Token is not a local JWT, assuming Cognito token");
-
-          // Decode without verification (development only)
-          const decoded = jwt.decode(token) as JwtPayload;
-          if (!decoded) {
-            res.status(401).json({ error: "Invalid token" });
-            return;
-          }
-
-          req.user = decoded;
-          next();
+      // Check if user has required role
+      if (allowedRoles.length > 0 && decoded.role) {
+        if (!allowedRoles.includes(decoded.role as string)) {
+          res.status(403).json({ error: "Insufficient permissions" });
+          return;
         }
-      } else {
-        res.status(401).json({ error: "Invalid token format" });
       }
+
+      // Set user in request
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role,
+        cognitoId: decoded.id, // Keep for backward compatibility
+      };
+
+      next();
     } catch (error) {
-      res.status(401).json({ error: "Invalid token" });
+      if (error instanceof jwt.JsonWebTokenError) {
+        res.status(401).json({ error: "Invalid token" });
+        return;
+      }
+      res.status(401).json({ error: "Unauthorized" });
     }
   };
+};
+
+// Helper middleware to extract user from token without requiring authentication
+export const optionalAuth = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): void => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (token) {
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "your-secret-key",
+      ) as JwtPayload;
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role,
+        cognitoId: decoded.id,
+      };
+    }
+    next();
+  } catch {
+    next();
+  }
 };

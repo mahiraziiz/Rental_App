@@ -203,9 +203,10 @@ export const withToast = async <T>(
   }
 };
 
+// Updated function to create user in database without AWS Cognito
 export const createNewUserInDatabase = async <T>(
   user: Record<string, unknown>,
-  idToken: Record<string, unknown> | string,
+  userData: Record<string, unknown>,
   userRole: string,
   fetchWithBQ: (args: {
     url: string;
@@ -216,22 +217,19 @@ export const createNewUserInDatabase = async <T>(
   const createEndpoint =
     userRole?.toLowerCase() === "manager" ? "/managers" : "/tenants";
 
-  let email = "";
-  if (typeof idToken === "object" && idToken) {
-    const payload = idToken.payload as Record<string, unknown>;
-    if (payload?.email) {
-      email = String(payload.email);
-    }
-  }
+  // Extract user details from the user object
+  const userId = user.userId || user.id;
+  const name = user.name || user.username || "";
+  const email = user.email || userData.email || "";
 
   const createUserResponse = await fetchWithBQ({
     url: createEndpoint,
     method: "POST",
     body: {
-      cognitoId: user.userId,
-      name: user.username,
-      email,
-      phoneNumber: "",
+      cognitoId: userId, // Using userId as cognitoId for backward compatibility
+      name: name,
+      email: email,
+      phoneNumber: user.phoneNumber || "",
     },
   });
 

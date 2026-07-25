@@ -5,7 +5,7 @@ const getLeases = async (req: Request, res: Response): Promise<void> => {
   try {
     const leases = await prisma.lease.findMany({
       include: {
-        tenant: true,
+        tenant: true, 
         property: true,
       },
     });

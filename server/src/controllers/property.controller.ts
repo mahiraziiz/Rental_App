@@ -1,12 +1,15 @@
 import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { wktToGeoJSON } from "@terraformer/wkt";
-import { S3Client } from "@aws-sdk/client-s3";
 import { Location } from "@prisma/client";
-import { Upload } from "@aws-sdk/lib-storage";
 import axios from "axios";
-import prisma from "../db/index";
+import prisma from "../db";
+import { AuthRequest } from "../middleware/auth.middleware";
+import UploadService from "../services/upload.service";
 
+// ============================
+// Helper Functions
+// ============================
 const parseBooleanValue = (value: unknown): boolean => {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
@@ -17,22 +20,10 @@ const parseBooleanValue = (value: unknown): boolean => {
   return false;
 };
 
-const getManagerIdFromRequest = (req: Request): string | null => {
-  const user = (req as Request & { user?: Record<string, unknown> }).user;
+const getManagerIdFromRequest = (req: AuthRequest): string | null => {
+  const user = req.user;
   if (!user) return null;
-
-  const possibleIds = [
-    user.sub,
-    user.username,
-    user["cognito:username"],
-    user.userId,
-  ];
-
-  const matchedId = possibleIds.find(
-    (value) => typeof value === "string" && value.trim().length > 0,
-  );
-
-  return typeof matchedId === "string" ? matchedId : null;
+  return user.id || null;
 };
 
 const parseCoordinateValue = (
@@ -149,131 +140,114 @@ const resolveCoordinates = async (params: {
   );
 };
 
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
-});
+// ============================
+// Query Builder Helpers
+// ============================
+const buildPropertyWhereConditions = (query: any): Prisma.Sql[] => {
+  const conditions: Prisma.Sql[] = [];
 
+  // Always filter active properties
+  conditions.push(Prisma.sql`p."isActive" = true`);
+
+  if (query.favoriteIds) {
+    const favoriteIdsArray = (query.favoriteIds as string)
+      .split(",")
+      .map(Number);
+    conditions.push(Prisma.sql`p.id IN (${Prisma.join(favoriteIdsArray)})`);
+  }
+
+  if (query.managerCognitoId) {
+    conditions.push(
+      Prisma.sql`p."managerCognitoId" = ${query.managerCognitoId}`,
+    );
+  }
+
+  if (query.location) {
+    conditions.push(
+      Prisma.sql`(l.city ILIKE ${`%${query.location}%`} OR l.state ILIKE ${`%${query.location}%`} OR l.address ILIKE ${`%${query.location}%`})`,
+    );
+  }
+
+  if (query.priceMin) {
+    conditions.push(Prisma.sql`p."pricePerMonth" >= ${Number(query.priceMin)}`);
+  }
+
+  if (query.priceMax) {
+    conditions.push(Prisma.sql`p."pricePerMonth" <= ${Number(query.priceMax)}`);
+  }
+
+  if (query.beds && query.beds !== "any") {
+    conditions.push(Prisma.sql`p.beds >= ${Number(query.beds)}`);
+  }
+
+  if (query.baths && query.baths !== "any") {
+    conditions.push(Prisma.sql`p.baths >= ${Number(query.baths)}`);
+  }
+
+  if (query.squareFeetMin) {
+    conditions.push(
+      Prisma.sql`p."squareFeet" >= ${Number(query.squareFeetMin)}`,
+    );
+  }
+
+  if (query.squareFeetMax) {
+    conditions.push(
+      Prisma.sql`p."squareFeet" <= ${Number(query.squareFeetMax)}`,
+    );
+  }
+
+  if (query.propertyType && query.propertyType !== "any") {
+    conditions.push(
+      Prisma.sql`p."propertyType" = ${query.propertyType}::"PropertyType"`,
+    );
+  }
+
+  if (query.amenities && query.amenities !== "any") {
+    const amenitiesArray = (query.amenities as string).split(",");
+    conditions.push(Prisma.sql`p.amenities @> ${amenitiesArray}`);
+  }
+
+  if (query.availableFrom && query.availableFrom !== "any") {
+    const date = new Date(query.availableFrom as string);
+    if (!isNaN(date.getTime())) {
+      conditions.push(
+        Prisma.sql`EXISTS (
+          SELECT 1 FROM "Lease" l 
+          WHERE l."propertyId" = p.id 
+          AND l."startDate" <= ${date.toISOString()}
+        )`,
+      );
+    }
+  }
+
+  if (query.latitude !== undefined && query.longitude !== undefined) {
+    const lat = parseFloat(query.latitude as string);
+    const lng = parseFloat(query.longitude as string);
+
+    if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+      const radiusInKilometers = 1000;
+      const degrees = radiusInKilometers / 111;
+
+      conditions.push(
+        Prisma.sql`ST_DWithin(
+          l.coordinates::geometry,
+          ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),
+          ${degrees}
+        )`,
+      );
+    }
+  }
+
+  return conditions;
+};
+
+// ============================
+// Controller Functions
+// ============================
 const getProperties = async (req: Request, res: Response): Promise<void> => {
   try {
-    const {
-      favoriteIds,
-      managerCognitoId,
-      priceMin,
-      priceMax,
-      beds,
-      baths,
-      propertyType,
-      squareFeetMin,
-      squareFeetMax,
-      amenities,
-      availableFrom,
-      latitude,
-      longitude,
-      location,
-    } = req.query;
-
-    let whereConditions: Prisma.Sql[] = [];
-
-    // Only show active properties
-    whereConditions.push(Prisma.sql`p."isActive" = true`);
-
-    if (favoriteIds) {
-      const favoriteIdsArray = (favoriteIds as string).split(",").map(Number);
-      whereConditions.push(
-        Prisma.sql`p.id IN (${Prisma.join(favoriteIdsArray)})`,
-      );
-    }
-
-    if (managerCognitoId) {
-      whereConditions.push(
-        Prisma.sql`p."managerCognitoId" = ${managerCognitoId}`,
-      );
-    }
-
-    if (location) {
-      whereConditions.push(
-        Prisma.sql`(l.city ILIKE ${`%${location}%`} OR l.state ILIKE ${`%${location}%`} OR l.address ILIKE ${`%${location}%`})`,
-      );
-    }
-
-    if (priceMin) {
-      whereConditions.push(
-        Prisma.sql`p."pricePerMonth" >= ${Number(priceMin)}`,
-      );
-    }
-
-    if (priceMax) {
-      whereConditions.push(
-        Prisma.sql`p."pricePerMonth" <= ${Number(priceMax)}`,
-      );
-    }
-
-    if (beds && beds !== "any") {
-      whereConditions.push(Prisma.sql`p.beds >= ${Number(beds)}`);
-    }
-
-    if (baths && baths !== "any") {
-      whereConditions.push(Prisma.sql`p.baths >= ${Number(baths)}`);
-    }
-
-    if (squareFeetMin) {
-      whereConditions.push(
-        Prisma.sql`p."squareFeet" >= ${Number(squareFeetMin)}`,
-      );
-    }
-
-    if (squareFeetMax) {
-      whereConditions.push(
-        Prisma.sql`p."squareFeet" <= ${Number(squareFeetMax)}`,
-      );
-    }
-
-    if (propertyType && propertyType !== "any") {
-      whereConditions.push(
-        Prisma.sql`p."propertyType" = ${propertyType}::"PropertyType"`,
-      );
-    }
-
-    if (amenities && amenities !== "any") {
-      const amenitiesArray = (amenities as string).split(",");
-      whereConditions.push(Prisma.sql`p.amenities @> ${amenitiesArray}`);
-    }
-
-    if (availableFrom && availableFrom !== "any") {
-      const availableFromDate =
-        typeof availableFrom === "string" ? availableFrom : null;
-      if (availableFromDate) {
-        const date = new Date(availableFromDate);
-        if (!isNaN(date.getTime())) {
-          whereConditions.push(
-            Prisma.sql`EXISTS (
-              SELECT 1 FROM "Lease" l 
-              WHERE l."propertyId" = p.id 
-              AND l."startDate" <= ${date.toISOString()}
-            )`,
-          );
-        }
-      }
-    }
-
-    if (latitude !== undefined && longitude !== undefined) {
-      const lat = parseFloat(latitude as string);
-      const lng = parseFloat(longitude as string);
-
-      // Ignore invalid values and the default [0,0] sentinel used by client filters.
-      if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
-        const radiusInKilometers = 1000;
-        const degrees = radiusInKilometers / 111; // Converts kilometers to degrees
-
-        whereConditions.push(
-          Prisma.sql`ST_DWithin(
-            l.coordinates::geometry,
-            ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),
-            ${degrees}
-          )`,
-        );
-      }
-    }
+    const query = req.query;
+    const whereConditions = buildPropertyWhereConditions(query);
 
     const completeQuery = Prisma.sql`
       SELECT 
@@ -300,22 +274,7 @@ const getProperties = async (req: Request, res: Response): Promise<void> => {
     `;
 
     console.log("\n[Property Controller] GET /properties called");
-    console.log("[Property Controller] Query filters received:", {
-      favoriteIds,
-      managerCognitoId,
-      priceMin,
-      priceMax,
-      beds,
-      baths,
-      propertyType,
-      squareFeetMin,
-      squareFeetMax,
-      amenities,
-      availableFrom,
-      latitude,
-      longitude,
-      location,
-    });
+    console.log("[Property Controller] Query filters received:", query);
     console.log(
       "[Property Controller] WHERE conditions count:",
       whereConditions.length,
@@ -323,22 +282,13 @@ const getProperties = async (req: Request, res: Response): Promise<void> => {
 
     const properties = await prisma.$queryRaw(completeQuery);
 
-    // console.log("[Property Controller] SQL Query:", completeQuery);
-    // console.log(
-    //   "[Property Controller] Properties found:",
-    //   properties,
-    //   "properties",
-    // );
     if (Array.isArray(properties) && properties.length > 0) {
       console.log("[Property Controller] First property:", properties[0]);
     }
 
     res.json(properties);
   } catch (error: any) {
-    console.error("[Property Controller] ERROR - Full error object:", error);
-    console.error("[Property Controller] Error message:", error.message);
-    console.error("[Property Controller] Error stack:", error.stack);
-
+    console.error("[Property Controller] ERROR:", error);
     res.status(500).json({
       message: `Error retrieving properties: ${error.message}`,
       error: error.message,
@@ -369,8 +319,11 @@ const getProperty = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const coordinates: { coordinates: string }[] =
-      await prisma.$queryRaw`SELECT ST_asText(coordinates) as coordinates from "Location" where id = ${property.location.id}`;
+    const coordinates: { coordinates: string }[] = await prisma.$queryRaw`
+      SELECT ST_asText(coordinates) as coordinates 
+      FROM "Location" 
+      WHERE id = ${property.locationId}
+    `;
 
     const geoJSON: any = wktToGeoJSON(coordinates[0]?.coordinates || "");
     const longitude = geoJSON.coordinates[0];
@@ -386,15 +339,19 @@ const getProperty = async (req: Request, res: Response): Promise<void> => {
         },
       },
     };
+
     res.json(propertyWithCoordinates);
   } catch (err: any) {
-    res
-      .status(500)
-      .json({ message: `Error retrieving property: ${err.message}` });
+    res.status(500).json({
+      message: `Error retrieving property: ${err.message}`,
+    });
   }
 };
 
-const createProperty = async (req: Request, res: Response): Promise<void> => {
+const createProperty = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const files = (req.files as Express.Multer.File[]) || [];
     const {
@@ -409,33 +366,36 @@ const createProperty = async (req: Request, res: Response): Promise<void> => {
       ...propertyData
     } = req.body;
 
-    const hasS3Config =
-      !!process.env.AWS_REGION && !!process.env.S3_BUCKET_NAME;
-    const photoUrls =
-      files.length === 0
-        ? ["https://placehold.co/1200x800?text=Property+Photo"]
-        : hasS3Config
-          ? await Promise.all(
-              files.map(async (file) => {
-                const uploadParams = {
-                  Bucket: process.env.S3_BUCKET_NAME!,
-                  Key: `properties/${Date.now()}-${file.originalname}`,
-                  Body: file.buffer,
-                  ContentType: file.mimetype,
-                };
+    // Get manager ID
+    const managerId = getManagerIdFromRequest(req) || managerCognitoId;
 
-                const uploadResult = await new Upload({
-                  client: s3Client,
-                  params: uploadParams,
-                }).done();
+    if (!managerId) {
+      res.status(401).json({
+        message: "Manager identity could not be verified",
+      });
+      return;
+    }
 
-                return uploadResult.Location;
-              }),
-            )
-          : files.map(
-              () => "https://placehold.co/1200x800?text=Property+Photo",
-            );
+    // Verify manager exists
+    const manager = await prisma.manager.findUnique({
+      where: { cognitoId: managerId },
+    });
 
+    if (!manager) {
+      res.status(404).json({
+        message:
+          "Manager profile not found. Please complete your profile first.",
+      });
+      return;
+    }
+
+    // Upload images to Cloudinary using UploadService
+    const photoUrls = await UploadService.uploadMultipleFiles(
+      files,
+      "properties",
+    );
+
+    // Resolve coordinates
     let coordinates;
     try {
       coordinates = await resolveCoordinates({
@@ -477,20 +437,27 @@ const createProperty = async (req: Request, res: Response): Promise<void> => {
       throw error;
     }
 
-    // create location
+    // Create location
     const [location] = await prisma.$queryRaw<Location[]>`
       INSERT INTO "Location" (address, city, state, country, "postalCode", coordinates)
-      VALUES (${address}, ${city}, ${state}, ${country}, ${postalCode}, ST_SetSRID(ST_MakePoint(${coordinates.longitude}, ${coordinates.latitude}), 4326))
+      VALUES (
+        ${address}, 
+        ${city}, 
+        ${state}, 
+        ${country}, 
+        ${postalCode}, 
+        ST_SetSRID(ST_MakePoint(${coordinates.longitude}, ${coordinates.latitude}), 4326)
+      )
       RETURNING id, address, city, state, country, "postalCode", ST_AsText(coordinates) as coordinates;
     `;
 
-    // create property
+    // Create property
     const newProperty = await prisma.property.create({
       data: {
         ...propertyData,
         photoUrls,
         locationId: location.id,
-        managerCognitoId,
+        managerCognitoId: managerId,
         amenities:
           typeof propertyData.amenities === "string"
             ? propertyData.amenities.split(",")
@@ -516,15 +483,19 @@ const createProperty = async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json(newProperty);
   } catch (err: any) {
-    res
-      .status(500)
-      .json({ message: `Error creating property: ${err.message}` });
+    res.status(500).json({
+      message: `Error creating property: ${err.message}`,
+    });
   }
 };
 
-const updateProperty = async (req: Request, res: Response): Promise<void> => {
+const updateProperty = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
   try {
     const propertyId = Number(req.params.id);
+
     if (Number.isNaN(propertyId)) {
       res.status(400).json({ message: "Invalid property id" });
       return;
@@ -540,6 +511,7 @@ const updateProperty = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Verify ownership
     const requestedManagerIdFromBody =
       typeof req.body.managerCognitoId === "string"
         ? req.body.managerCognitoId
@@ -548,16 +520,16 @@ const updateProperty = async (req: Request, res: Response): Promise<void> => {
       getManagerIdFromRequest(req) ?? requestedManagerIdFromBody;
 
     if (!managerCognitoId) {
-      res
-        .status(401)
-        .json({ message: "Manager identity could not be verified" });
+      res.status(401).json({
+        message: "Manager identity could not be verified",
+      });
       return;
     }
 
     if (existingProperty.managerCognitoId !== managerCognitoId) {
-      res
-        .status(403)
-        .json({ message: "You can only edit your own properties" });
+      res.status(403).json({
+        message: "You can only edit your own properties",
+      });
       return;
     }
 
@@ -583,33 +555,16 @@ const updateProperty = async (req: Request, res: Response): Promise<void> => {
       ...propertyData
     } = req.body;
 
-    const hasS3Config =
-      !!process.env.AWS_REGION && !!process.env.S3_BUCKET_NAME;
-    const nextPhotoUrls =
-      files.length === 0
-        ? undefined
-        : hasS3Config
-          ? await Promise.all(
-              files.map(async (file) => {
-                const uploadParams = {
-                  Bucket: process.env.S3_BUCKET_NAME!,
-                  Key: `properties/${Date.now()}-${file.originalname}`,
-                  Body: file.buffer,
-                  ContentType: file.mimetype,
-                };
+    // Upload new images if any using UploadService
+    let nextPhotoUrls: string[] | undefined;
+    if (files.length > 0) {
+      nextPhotoUrls = await UploadService.uploadMultipleFiles(
+        files,
+        "properties",
+      );
+    }
 
-                const uploadResult = await new Upload({
-                  client: s3Client,
-                  params: uploadParams,
-                }).done();
-
-                return uploadResult.Location;
-              }),
-            )
-          : files.map(
-              () => "https://placehold.co/1200x800?text=Property+Photo",
-            );
-
+    // Update location if needed
     const hasLocationUpdate = [
       address,
       city,
@@ -678,6 +633,7 @@ const updateProperty = async (req: Request, res: Response): Promise<void> => {
       }
     }
 
+    // Update property
     const updatedProperty = await prisma.property.update({
       where: { id: propertyId },
       data: {
@@ -718,10 +674,13 @@ const updateProperty = async (req: Request, res: Response): Promise<void> => {
 
     res.json(updatedProperty);
   } catch (err: any) {
-    res
-      .status(500)
-      .json({ message: `Error updating property: ${err.message}` });
+    res.status(500).json({
+      message: `Error updating property: ${err.message}`,
+    });
   }
 };
 
+// ============================
+// Exports
+// ============================
 export { getProperties, getProperty, createProperty, updateProperty };

@@ -11,12 +11,12 @@ import {
 
 const router = express.Router();
 
-router.get("/:cognitoId", getTenant);
-router.delete("/:cognitoId", deleteTenant);
-router.put("/:cognitoId", updateTenant);
+router.get("/:id", getTenant);
+router.delete("/:id", deleteTenant);
+router.put("/:id", updateTenant);
 router.post("/", createTenant);
-router.get("/:cognitoId/current-residences", getCurrentResidences);
-router.post("/:cognitoId/favorites/:propertyId", addFavoriteProperty);
-router.delete("/:cognitoId/favorites/:propertyId", removeFavoriteProperty);
+router.get("/:id/current-residences", getCurrentResidences);
+router.post("/:id/favorites/:propertyId", addFavoriteProperty);
+router.delete("/:id/favorites/:propertyId", removeFavoriteProperty);
 
 export default router;

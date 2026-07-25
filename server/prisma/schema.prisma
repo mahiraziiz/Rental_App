@@ -65,6 +65,19 @@ enum PaymentStatus {
   Refunded
 }
 
+// SIMPLIFIED: User model without direct relations to Tenant/Manager
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("tenant") // "tenant", "manager", "admin"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
 model Property {
   id                Int          @id @default(autoincrement())
   name              String
@@ -81,11 +94,11 @@ model Property {
   baths             Float
   squareFeet        Int
   propertyType      PropertyType
-  isActive          Boolean      @default(true) // To soft delete properties
+  isActive          Boolean      @default(true)
   averageRating     Float?       @default(0)
   numberOfReviews   Int?         @default(0)
   locationId        Int
-  managerCognitoId  String
+  managerCognitoId  String // This stores user.id
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -99,7 +112,7 @@ model Property {
 
 model Manager {
   id          Int      @id @default(autoincrement())
-  cognitoId   String   @unique
+  cognitoId   String   @unique // Stores user.id
   name        String
   email       String   @unique
   phoneNumber String
@@ -111,7 +124,7 @@ model Manager {
 
 model Tenant {
   id          Int      @id @default(autoincrement())
-  cognitoId   String   @unique
+  cognitoId   String   @unique // Stores user.id
   name        String
   email       String   @unique
   phoneNumber String
@@ -142,7 +155,7 @@ model Application {
   applicationDate DateTime          @default(now())
   status          ApplicationStatus @default(Pending)
   propertyId      Int
-  tenantCognitoId String
+  tenantCognitoId String // Stores user.id
   message         String?
   leaseId         Int?              @unique
   createdAt       DateTime          @default(now())
@@ -160,7 +173,7 @@ model Lease {
   rent            Float
   deposit         Float
   propertyId      Int
-  tenantCognitoId String
+  tenantCognitoId String // Stores user.id
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
