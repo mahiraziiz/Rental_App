@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const PaymentMethod = () => {
   return (
@@ -246,6 +247,7 @@ const BillingHistory = ({ payments }: { payments: Payment[] }) => {
 
 const Residence = () => {
   const { id } = useParams();
+  const { user } = useAuth(); 
   const { data: authUser } = useGetAuthUserQuery();
   const {
     data: property,
@@ -254,8 +256,8 @@ const Residence = () => {
   } = useGetPropertyQuery(Number(id));
 
   const { data: leases, isLoading: leasesLoading } = useGetLeasesQuery(
-    parseInt(authUser?.cognitoInfo?.userId || "0"),
-    { skip: !authUser?.cognitoInfo?.userId },
+    parseInt(user?.id || "0"), 
+    { skip: !user?.id },
   );
   const { data: payments, isLoading: paymentsLoading } = useGetPaymentsQuery(
     leases?.[0]?.id || 0,
@@ -277,7 +279,7 @@ const Residence = () => {
             <ResidenceCard
               property={property}
               currentLease={currentLease}
-              tenantName={authUser?.userInfo?.name}
+              tenantName={authUser?.userInfo?.name || user?.name}
             />
           )}
           <PaymentMethod />

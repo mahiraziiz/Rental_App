@@ -1,69 +1,69 @@
-import { Request, Response, NextFunction } from "express";
 import multer from "multer";
-import { uploadArray, uploadSingle } from "../config/multer.config";
+import path from "path";
+import { Request, Response, NextFunction } from "express";
 
-// Error handler for multer
-export const handleMulterError = (
-  err: any,
+// Configure storage
+const storage = multer.diskStorage({
+  destination: (req: Request, file: Express.Multer.File, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req: Request, file: Express.Multer.File, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(
+      null,
+      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
+    );
+  },
+});
+
+// File filter
+const fileFilter = (
   req: Request,
-  res: Response,
-  next: NextFunction,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
 ) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === "FILE_TOO_LARGE") {
-      return res.status(400).json({
-        message: "File too large. Maximum size is 5MB.",
-      });
-    }
-    if (err.code === "LIMIT_UNEXPECTED_FILE") {
-      return res.status(400).json({
-        message: "Unexpected file field.",
-      });
-    }
-    return res.status(400).json({
-      message: err.message,
-    });
-  }
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase(),
+  );
+  const mimetype = allowedTypes.test(file.mimetype);
 
-  if (err) {
-    return res.status(400).json({
-      message: err.message,
-    });
+  if (extname && mimetype) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only image files are allowed!"));
   }
-
-  next();
 };
 
-// Middleware for single file upload
-export const uploadSingleImage = (
+// Configure multer
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: fileFilter,
+});
+
+// ✅ Fixed middleware with proper types
+export const uploadMiddleware = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  uploadSingle(req, res, (err: any) => {
+  upload.array("images", 10)(req, res, (err: any) => {
     if (err) {
-      return handleMulterError(err, req, res, next);
+      // Check error code properly
+      if (err.code === "FILE_TOO_LARGE") {
+        res.status(400).json({ error: "File too large. Max size is 5MB." });
+        return;
+      }
+      if (err.message === "Only image files are allowed!") {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      res.status(500).json({ error: err.message });
+      return;
     }
     next();
   });
 };
 
-// Middleware for multiple file upload (max 10)
-export const uploadMultipleImages = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  uploadArray(req, res, (err: any) => {
-    if (err) {
-      return handleMulterError(err, req, res, next);
-    }
-    next();
-  });
-};
-
-export default {
-  uploadSingleImage,
-  uploadMultipleImages,
-  handleMulterError,
-};
+export default uploadMiddleware;

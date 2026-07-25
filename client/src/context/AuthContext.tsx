@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useAppDispatch } from "@/state/redux";
+import { api } from "@/state/api";
 
 interface User {
   id: string;
@@ -15,7 +17,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -36,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -62,6 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUser(data.data);
       } else {
         localStorage.removeItem("token");
+        setUser(null);
       }
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -87,11 +91,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const data = await response.json();
     localStorage.setItem("token", data.data.token);
-    setUser(data.data.user);
+    setUser({
+      id: data.data.user.id,
+      email: data.data.user.email,
+      name: data.data.user.name,
+      role: data.data.user.role,
+    });
     router.push("/");
   };
 
-  // In AuthContext.tsx, update the register function
   const register = async (data: RegisterData) => {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/register`,
@@ -103,11 +111,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           email: data.email,
           password: data.password,
           role: data.role || "tenant",
-          phoneNumber: data.phoneNumber || "", // Optional
+          phoneNumber: data.phoneNumber || "",
         }),
       },
     );
-    console.log("Register response:", response);
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Registration failed");
@@ -115,13 +123,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const result = await response.json();
     localStorage.setItem("token", result.data.token);
-    setUser(result.data.user);
+    setUser({
+      id: result.data.user.id,
+      email: result.data.user.email,
+      name: result.data.user.name,
+      role: result.data.user.role,
+    });
     router.push("/");
   };
-  const logout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
-    router.push("/");
+
+  const logout = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Logout API error:", error);
+    } finally {
+      localStorage.removeItem("token");
+      setUser(null);
+      dispatch(api.util.resetApiState());
+      router.push("/");
+      router.refresh();
+    }
   };
 
   // Redirect authenticated users away from auth pages
@@ -155,3 +186,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthProvider;

@@ -1,7 +1,17 @@
-import { Bath, Bed, Heart, House, Star } from "lucide-react";
+// client/src/components/CardCompact.tsx
+import { Bath, Bed, Heart, House, Star, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useState } from "react";
+
+interface CardCompactProps {
+  property: any;
+  isFavorite: boolean;
+  onFavoriteToggle: () => void;
+  showFavoriteButton?: boolean;
+  propertyLink?: string;
+  isLoading?: boolean;
+}
 
 const CardCompact = ({
   property,
@@ -9,6 +19,7 @@ const CardCompact = ({
   onFavoriteToggle,
   showFavoriteButton = true,
   propertyLink,
+  isLoading = false,
 }: CardCompactProps) => {
   const [imgSrc, setImgSrc] = useState(
     property.photoUrls?.[0] || "/placeholder.jpg",
@@ -56,14 +67,19 @@ const CardCompact = ({
             </h2>
             {showFavoriteButton && (
               <button
-                className="bg-white rounded-full p-1"
+                className="bg-white rounded-full p-1 disabled:opacity-50"
                 onClick={onFavoriteToggle}
+                disabled={isLoading}
               >
-                <Heart
-                  className={`w-4 h-4 ${
-                    isFavorite ? "text-red-500 fill-red-500" : "text-gray-600"
-                  }`}
-                />
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                ) : (
+                  <Heart
+                    className={`w-4 h-4 ${
+                      isFavorite ? "text-red-500 fill-red-500" : "text-gray-600"
+                    }`}
+                  />
+                )}
               </button>
             )}
           </div>

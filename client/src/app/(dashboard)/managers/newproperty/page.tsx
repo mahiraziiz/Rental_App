@@ -12,10 +12,13 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { z } from "zod";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const NewProperty = () => {
   const [createProperty] = useCreatePropertyMutation();
-  const { data: authUser } = useGetAuthUserQuery();
+  const { data: authUser, isLoading } = useGetAuthUserQuery();
+  const router = useRouter();
 
   type PropertyFormInput = z.input<typeof propertySchema>;
 
@@ -46,30 +49,77 @@ const NewProperty = () => {
   });
 
   const onSubmit = async (data: PropertyFormInput) => {
-    if (!authUser?.cognitoInfo?.userId) {
-      throw new Error("No manager ID found");
+    // Check if user is authenticated
+    if (!authUser?.id) {
+      toast.error("No manager ID found. Please login again.");
+      return;
     }
 
-    const formData = new FormData();
-    Object.entries(data).forEach(([key, value]) => {
-      if (key === "photoUrls") {
-        const files = value as File[];
-        files.forEach((file: File) => {
-          formData.append("photos", file);
-        });
-      } else if (value === undefined || value === null || value === "") {
-        return;
-      } else if (Array.isArray(value)) {
-        formData.append(key, JSON.stringify(value));
-      } else {
-        formData.append(key, String(value));
-      }
-    });
+    // Check if user is a manager
+    if (authUser.role?.toLowerCase() !== "manager") {
+      toast.error("Only managers can create properties.");
+      return;
+    }
 
-    formData.append("managerCognitoId", authUser.cognitoInfo.userId);
+    try {
+      console.log("📝 Creating property with data:", data);
 
-    await createProperty(formData);
+      // Create the request body as JSON instead of FormData
+      const requestBody = {
+        name: data.name,
+        description: data.description,
+        pricePerMonth: parseFloat(String(data.pricePerMonth)),
+        securityDeposit: parseFloat(String(data.securityDeposit)),
+        applicationFee: parseFloat(String(data.applicationFee)),
+        isPetsAllowed: data.isPetsAllowed,
+        isParkingIncluded: data.isParkingIncluded,
+        beds: parseInt(String(data.beds)),
+        baths: parseFloat(String(data.baths)),
+        squareFeet: parseInt(String(data.squareFeet)),
+        propertyType: data.propertyType || "Apartment",
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        country: data.country,
+        postalCode: data.postalCode,
+        managerUserId: authUser.id, // ✅ Use the JWT user ID
+        photoUrls: [], // Will be handled separately if needed
+        amenities: data.amenities ? [data.amenities] : [],
+        highlights: data.highlights ? [data.highlights] : [],
+        coordinates:
+          data.latitude && data.longitude
+            ? {
+                lat: parseFloat(String(data.latitude)),
+                lng: parseFloat(String(data.longitude)),
+              }
+            : undefined,
+      };
+
+      // console.log("📤 Sending request body:", requestBody);
+
+      const result = await createProperty(requestBody).unwrap();
+      toast.success("Property created successfully!");
+      router.push("/managers/properties");
+    } catch (error: any) {
+      console.error("❌ Error creating property:", error);
+      const errorMessage =
+        error?.data?.message || error?.message || "Failed to create property";
+      toast.error(errorMessage);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="dashboard-container">
+        <Header title="Add New Property" subtitle="Loading..." />
+        <div className="bg-white rounded-xl p-6">
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-container">
@@ -209,7 +259,11 @@ const NewProperty = () => {
                 label="Property Photos"
                 type="file"
                 accept="image/*"
+                multiple
               />
+              <p className="text-sm text-gray-500 mt-1">
+                Upload up to 10 images (JPEG, PNG, GIF, WebP)
+              </p>
             </div>
 
             <hr className="my-6 border-gray-200" />
@@ -220,7 +274,7 @@ const NewProperty = () => {
                 Additional Information
               </h2>
               <CustomFormField name="address" label="Address" />
-              <div className="flex justify-between gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <CustomFormField name="city" label="City" className="w-full" />
                 <CustomFormField
                   name="state"
@@ -240,12 +294,14 @@ const NewProperty = () => {
                   label="Latitude (Optional)"
                   type="number"
                   placeholder="e.g. 40.7128"
+                  step="any"
                 />
                 <CustomFormField
                   name="longitude"
                   label="Longitude (Optional)"
                   type="number"
                   placeholder="e.g. -74.0060"
+                  step="any"
                 />
               </div>
             </div>

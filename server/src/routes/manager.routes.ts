@@ -6,13 +6,18 @@ import {
   deleteManager,
   getManagerProperties,
 } from "../controllers/manager.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
+// Public routes
 router.get("/:id", getManager);
+router.post("/", createManager);
+
+// Protected routes
+router.use(authMiddleware(["manager"]));
 router.put("/:id", updateManager);
 router.delete("/:id", deleteManager);
 router.get("/:id/properties", getManagerProperties);
-router.post("/", createManager);
 
 export default router;

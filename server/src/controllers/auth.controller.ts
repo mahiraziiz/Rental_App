@@ -13,7 +13,7 @@ export const Register = async (req: Request, res: Response) => {
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
-    console.log("Existing user:", existingUser);
+
     if (existingUser) {
       res.status(400).json({ error: "User already exists" });
       return;
@@ -36,7 +36,7 @@ export const Register = async (req: Request, res: Response) => {
     if (role === "tenant") {
       await prisma.tenant.create({
         data: {
-          cognitoId: user.id,
+          userId: user.id,
           name,
           email,
           phoneNumber: phoneNumber || "",
@@ -45,7 +45,7 @@ export const Register = async (req: Request, res: Response) => {
     } else if (role === "manager") {
       await prisma.manager.create({
         data: {
-          cognitoId: user.id,
+          userId: user.id,
           name,
           email,
           phoneNumber: phoneNumber || "",
@@ -53,7 +53,7 @@ export const Register = async (req: Request, res: Response) => {
       });
     }
 
-    // Generate token
+    // Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || "your-secret-key",
@@ -100,7 +100,7 @@ export const Login = async (req: Request, res: Response) => {
       return;
     }
 
-    // Generate token
+    // Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || "your-secret-key",
@@ -125,13 +125,9 @@ export const Login = async (req: Request, res: Response) => {
   }
 };
 
-// Standard JWT Logout - Client handles token removal
-export const logout = async (req: AuthRequest, res: Response) => {
+// Logout
+export const Logout = async (req: AuthRequest, res: Response) => {
   try {
-    // In JWT-based authentication, we don't need to do anything server-side
-    // The client simply removes the token from storage
-    // We just send a success response
-
     res.status(200).json({
       success: true,
       message: "Logged out successfully",
@@ -143,7 +139,7 @@ export const logout = async (req: AuthRequest, res: Response) => {
 };
 
 // Get current user
-export const me = async (req: AuthRequest, res: Response) => {
+export const Me = async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },

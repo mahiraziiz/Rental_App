@@ -15,16 +15,22 @@ const getParamString = (
 const getTenant = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const tenantId = getParamString(id);
+    const userId = getParamString(id);
 
-    if (!tenantId) {
-      res.status(400).json({ message: "Invalid tenant ID" });
+    if (!userId) {
+      res.status(400).json({ message: "Invalid user ID" });
       return;
     }
 
     const tenant = await prisma.tenant.findUnique({
       where: {
-        cognitoId: tenantId,
+        userId: userId,
+      },
+      include: {
+        favorites: true,
+        properties: true,
+        applications: true,
+        leases: true,
       },
     });
 
@@ -43,16 +49,16 @@ const getTenant = async (req: Request, res: Response): Promise<void> => {
 // Create tenant
 const createTenant = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { cognitoId, name, email, phoneNumber } = req.body;
+    const { userId, name, email, phoneNumber } = req.body;
 
-    if (!cognitoId) {
-      res.status(400).json({ message: "cognitoId is required" });
+    if (!userId) {
+      res.status(400).json({ message: "userId is required" });
       return;
     }
 
     // Check if user exists
     const user = await prisma.user.findUnique({
-      where: { id: cognitoId },
+      where: { id: userId },
     });
 
     if (!user) {
@@ -62,7 +68,7 @@ const createTenant = async (req: Request, res: Response): Promise<void> => {
 
     const tenant = await prisma.tenant.create({
       data: {
-        cognitoId,
+        userId,
         name,
         email,
         phoneNumber,
@@ -81,10 +87,10 @@ const createTenant = async (req: Request, res: Response): Promise<void> => {
 const updateTenant = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const tenantId = getParamString(id);
+    const userId = getParamString(id);
 
-    if (!tenantId) {
-      res.status(400).json({ message: "Invalid tenant ID" });
+    if (!userId) {
+      res.status(400).json({ message: "Invalid user ID" });
       return;
     }
 
@@ -92,7 +98,7 @@ const updateTenant = async (req: Request, res: Response): Promise<void> => {
 
     const updatedTenant = await prisma.tenant.update({
       where: {
-        cognitoId: tenantId,
+        userId: userId,
       },
       data: {
         name,
@@ -113,16 +119,16 @@ const updateTenant = async (req: Request, res: Response): Promise<void> => {
 const deleteTenant = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const tenantId = getParamString(id);
+    const userId = getParamString(id);
 
-    if (!tenantId) {
-      res.status(400).json({ message: "Invalid tenant ID" });
+    if (!userId) {
+      res.status(400).json({ message: "Invalid user ID" });
       return;
     }
 
     // Get tenant with relations
     const tenant = await prisma.tenant.findUnique({
-      where: { cognitoId: tenantId },
+      where: { userId: userId },
       include: {
         favorites: { select: { id: true } },
         properties: { select: { id: true } },
@@ -134,12 +140,12 @@ const deleteTenant = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Delete tenant and associated user
+    // Delete tenant
     await prisma.$transaction(async (tx) => {
       // Remove tenant from favorites and properties first
       if (tenant.favorites && tenant.favorites.length > 0) {
         await tx.tenant.update({
-          where: { cognitoId: tenantId },
+          where: { userId: userId },
           data: {
             favorites: {
               disconnect: tenant.favorites.map((property) => ({
@@ -152,7 +158,7 @@ const deleteTenant = async (req: Request, res: Response): Promise<void> => {
 
       if (tenant.properties && tenant.properties.length > 0) {
         await tx.tenant.update({
-          where: { cognitoId: tenantId },
+          where: { userId: userId },
           data: {
             properties: {
               disconnect: tenant.properties.map((property) => ({
@@ -165,12 +171,12 @@ const deleteTenant = async (req: Request, res: Response): Promise<void> => {
 
       // Delete tenant
       await tx.tenant.delete({
-        where: { cognitoId: tenantId },
+        where: { userId: userId },
       });
 
       // Delete user
       await tx.user.delete({
-        where: { id: tenantId },
+        where: { id: userId },
       });
     });
 
@@ -189,17 +195,17 @@ const getCurrentResidences = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const tenantId = getParamString(id);
+    const userId = getParamString(id);
 
-    if (!tenantId) {
-      res.status(400).json({ message: "Invalid tenant ID" });
+    if (!userId) {
+      res.status(400).json({ message: "Invalid user ID" });
       return;
     }
 
     const properties = await prisma.property.findMany({
       where: {
         tenants: {
-          some: { cognitoId: tenantId },
+          some: { userId: userId },
         },
       },
       include: {
@@ -243,18 +249,20 @@ const addFavoriteProperty = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { cognitoId, propertyId } = req.params;
-    const tenantId = getParamString(cognitoId);
+    const { userId, propertyId } = req.params;
+    const tenantId = getParamString(userId);
     const propId = parseInt(getParamString(propertyId) || "0");
 
+    console.log("📝 Add Favorite Request:", { tenantId, propId });
+
     if (!tenantId || isNaN(propId)) {
-      res.status(400).json({ message: "Invalid tenant ID or property ID" });
+      res.status(400).json({ message: "Invalid user ID or property ID" });
       return;
     }
 
-    // Get current favorites
+    // Check if tenant exists
     const tenant = await prisma.tenant.findUnique({
-      where: { cognitoId: tenantId },
+      where: { userId: tenantId },
       include: {
         favorites: { select: { id: true } },
       },
@@ -265,6 +273,17 @@ const addFavoriteProperty = async (
       return;
     }
 
+    // Check if property exists
+    const property = await prisma.property.findUnique({
+      where: { id: propId },
+    });
+
+    if (!property) {
+      res.status(404).json({ message: "Property not found" });
+      return;
+    }
+
+    // Check if already favorite
     const existingFavorites = tenant.favorites || [];
     const isAlreadyFavorite = existingFavorites.some(
       (fav) => fav.id === propId,
@@ -276,16 +295,21 @@ const addFavoriteProperty = async (
     }
 
     const updatedTenant = await prisma.tenant.update({
-      where: { cognitoId: tenantId },
+      where: { userId: tenantId },
       data: {
         favorites: {
           connect: { id: propId },
         },
       },
+      include: {
+        favorites: true,
+      },
     });
 
+    console.log("✅ Favorite added successfully:", updatedTenant);
     res.json(updatedTenant);
   } catch (error: any) {
+    console.error("Error adding favorite property:", error);
     res.status(500).json({
       message: `Error adding favorite property: ${error.message}`,
     });
@@ -298,26 +322,43 @@ const removeFavoriteProperty = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { cognitoId, propertyId } = req.params;
-    const tenantId = getParamString(cognitoId);
+    const { userId, propertyId } = req.params;
+    const tenantId = getParamString(userId);
     const propId = parseInt(getParamString(propertyId) || "0");
 
+    console.log("📝 Remove Favorite Request:", { tenantId, propId });
+
     if (!tenantId || isNaN(propId)) {
-      res.status(400).json({ message: "Invalid tenant ID or property ID" });
+      res.status(400).json({ message: "Invalid user ID or property ID" });
+      return;
+    }
+
+    // Check if tenant exists
+    const tenant = await prisma.tenant.findUnique({
+      where: { userId: tenantId },
+    });
+
+    if (!tenant) {
+      res.status(404).json({ message: "Tenant not found" });
       return;
     }
 
     const updatedTenant = await prisma.tenant.update({
-      where: { cognitoId: tenantId },
+      where: { userId: tenantId },
       data: {
         favorites: {
           disconnect: { id: propId },
         },
       },
+      include: {
+        favorites: true,
+      },
     });
 
+    console.log("✅ Favorite removed successfully:", updatedTenant);
     res.json(updatedTenant);
   } catch (error: any) {
+    console.error("Error removing favorite property:", error);
     res.status(500).json({
       message: `Error removing favorite property: ${error.message}`,
     });

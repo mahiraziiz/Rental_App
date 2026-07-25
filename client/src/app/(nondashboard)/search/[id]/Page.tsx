@@ -8,7 +8,7 @@ import PropertyOverview from "./PropertyOverview";
 import PropertyDetails from "./PropertyDetails";
 import PropertyLocation from "./PropertyLocation";
 import ContactWidget from "./ContactWidget";
-import ApplicationModal from "./Application.Modal";
+import ApplicationModal from "./ApplicationModal";
 
 const SingleListing = () => {
   const { id } = useParams();

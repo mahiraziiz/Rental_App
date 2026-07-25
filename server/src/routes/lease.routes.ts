@@ -1,14 +1,17 @@
 import express from "express";
+import {
+  getLeases,
+  getPropertyLeases,
+  getPayments,
+} from "../controllers/lease.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { getLeasePayments, getLeases } from "../controllers/lease.controller";
 
 const router = express.Router();
 
-router.get("/", authMiddleware(["manager", "tenant"]), getLeases);
-router.get(
-  "/:id/payments",
-  authMiddleware(["manager", "tenant"]),
-  getLeasePayments,
-);
+// Protected routes
+router.use(authMiddleware(["tenant", "manager"]));
+router.get("/", getLeases);
+router.get("/property/:propertyId", getPropertyLeases);
+router.get("/:leaseId/payments", getPayments);
 
 export default router;

@@ -1,7 +1,17 @@
-import { Bath, Bed, Heart, House, Star } from "lucide-react";
+// client/src/components/Card.tsx
+import { Bath, Bed, Heart, House, Star, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useState } from "react";
+
+interface CardProps {
+  property: any;
+  isFavorite: boolean;
+  onFavoriteToggle: () => void;
+  showFavoriteButton?: boolean;
+  propertyLink?: string;
+  isLoading?: boolean;
+}
 
 const Card = ({
   property,
@@ -9,6 +19,7 @@ const Card = ({
   onFavoriteToggle,
   showFavoriteButton = true,
   propertyLink,
+  isLoading = false,
 }: CardProps) => {
   const [imgSrc, setImgSrc] = useState(
     property.photoUrls?.[0] || "/placeholder.jpg",
@@ -41,14 +52,19 @@ const Card = ({
         </div>
         {showFavoriteButton && (
           <button
-            className="absolute bottom-4 right-4 bg-white hover:bg-white/90 rounded-full p-2 cursor-pointer"
+            className="absolute bottom-4 right-4 bg-white hover:bg-white/90 rounded-full p-2 cursor-pointer disabled:opacity-50"
             onClick={onFavoriteToggle}
+            disabled={isLoading}
           >
-            <Heart
-              className={`w-5 h-5 ${
-                isFavorite ? "text-red-500 fill-red-500" : "text-gray-600"
-              }`}
-            />
+            {isLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            ) : (
+              <Heart
+                className={`w-5 h-5 ${
+                  isFavorite ? "text-red-500 fill-red-500" : "text-gray-600"
+                }`}
+              />
+            )}
           </button>
         )}
       </div>

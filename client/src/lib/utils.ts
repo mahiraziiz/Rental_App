@@ -203,7 +203,6 @@ export const withToast = async <T>(
   }
 };
 
-// Updated function to create user in database without AWS Cognito
 export const createNewUserInDatabase = async <T>(
   user: Record<string, unknown>,
   userData: Record<string, unknown>,
@@ -226,7 +225,7 @@ export const createNewUserInDatabase = async <T>(
     url: createEndpoint,
     method: "POST",
     body: {
-      cognitoId: userId, // Using userId as cognitoId for backward compatibility
+      userId: userId, 
       name: name,
       email: email,
       phoneNumber: user.phoneNumber || "",

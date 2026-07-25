@@ -13,11 +13,13 @@ import {
 import { CircleCheckBig, Download, File, Hospital } from "lucide-react";
 import Link from "next/link";
 import React, { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const Applications = () => {
+  const { user } = useAuth(); // ✅ Get user from context
   const { data: authUser, isLoading: authLoading } = useGetAuthUserQuery();
   const [activeTab, setActiveTab] = useState("all");
-  const isManager = authUser?.userRole?.toLowerCase() === "manager";
+  const isManager = user?.role?.toLowerCase() === "manager"; // ✅ Use user from context
 
   const {
     data: applications,
@@ -25,11 +27,11 @@ const Applications = () => {
     isError,
   } = useGetApplicationsQuery(
     {
-      userId: authUser?.cognitoInfo?.userId,
+      userId: user?.id, 
       userType: "manager",
     },
     {
-      skip: !isManager || !authUser?.cognitoInfo?.userId,
+      skip: !isManager || !user?.id, 
     },
   );
   const [updateApplicationStatus] = useUpdateApplicationStatusMutation();
@@ -144,7 +146,8 @@ const Applications = () => {
                               propertyName: application.property?.name,
                               tenantName: application.tenant?.name,
                               tenantEmail: application.tenant?.email,
-                              managerName: authUser?.userInfo?.name,
+                              managerName:
+                                authUser?.userInfo?.name || user?.name,
                               status: application.status,
                               startDate: application.lease?.startDate,
                               endDate: application.lease?.endDate,

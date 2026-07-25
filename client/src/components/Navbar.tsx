@@ -1,3 +1,4 @@
+// client/src/components/Navbar.tsx
 "use client";
 
 import { NAVBAR_HEIGHT } from "@/lib/constants";
@@ -6,8 +7,15 @@ import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useMemo } from "react";
-import { Bell, MessageCircle, Plus, Search } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import {
+  Bell,
+  MessageCircle,
+  Plus,
+  Search,
+  LogOut,
+  Loader2,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -18,10 +26,12 @@ import {
 } from "./ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { SidebarTrigger } from "./ui/sidebar";
+import { toast } from "sonner";
 
 const Navbar = () => {
-  const { data: authUser } = useGetAuthUserQuery();
-  const { logout } = useAuth(); // Use our custom logout instead of AWS signOut
+  const { data: authUser, refetch } = useGetAuthUserQuery();
+  const { logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const userRole = authUser?.userRole?.toLowerCase();
@@ -69,9 +79,22 @@ const Navbar = () => {
   const isDashboardPage =
     pathname.includes("/managers") || pathname.includes("/tenants");
 
+  // ✅ FIXED LOGOUT HANDLER
   const handleSignOut = async () => {
-    await logout(); // Use our custom logout function
-    // No need for window.location.href as logout handles redirect
+    if (isLoggingOut) return; // Prevent multiple clicks
+
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      // Refetch auth user to ensure state is cleared
+      await refetch();
+      toast.success("Logged out successfully");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Failed to logout");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -236,10 +259,21 @@ const Navbar = () => {
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    className="cursor-pointer hover:bg-primary-700! hover:text-primary-100!"
+                    className="cursor-pointer hover:bg-primary-700! hover:text-primary-100! flex items-center gap-2"
                     onClick={handleSignOut}
+                    disabled={isLoggingOut}
                   >
-                    Sign out
+                    {isLoggingOut ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Logging out...
+                      </>
+                    ) : (
+                      <>
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </>
+                    )}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -251,7 +285,7 @@ const Navbar = () => {
                   variant="outline"
                   className="text-white border-white bg-transparent hover:bg-white hover:text-primary-700 rounded-lg"
                 >
-                  Sign In
+                  Login
                 </Button>
               </Link>
               <Link href="/register">
@@ -259,7 +293,7 @@ const Navbar = () => {
                   variant="secondary"
                   className="text-white bg-secondary-600 hover:bg-white hover:text-primary-700 rounded-lg"
                 >
-                  Sign Up
+                  Register
                 </Button>
               </Link>
             </>

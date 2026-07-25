@@ -20,11 +20,14 @@ import { useParams, useRouter } from "next/navigation";
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { ArrowLeft } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 const EditProperty = () => {
   const router = useRouter();
   const { id } = useParams();
   const propertyId = Number(id);
+  const { user } = useAuth(); // ✅ Get user from context
 
   const { data: authUser } = useGetAuthUserQuery();
   const { data: property, isLoading: propertyLoading } = useGetPropertyQuery(
@@ -94,27 +97,61 @@ const EditProperty = () => {
   }, [form, property]);
 
   const onSubmit = async (data: PropertyEditFormInput) => {
-    const managerId = authUser?.cognitoInfo?.userId;
+    const managerId = user?.id;
     if (!managerId) {
-      throw new Error("No manager ID found");
+      toast.error("No manager ID found. Please login again.");
+      return;
     }
 
-    const formData = new FormData();
-    Object.entries(data).forEach(([key, value]) => {
-      if (key === "photoUrls") {
-        const files = (value as File[] | undefined) ?? [];
-        files.forEach((file: File) => {
-          formData.append("photos", file);
-        });
-      } else if (value !== undefined && value !== null && value !== "") {
-        formData.append(key, String(value));
-      }
-    });
+    if (user?.role?.toLowerCase() !== "manager") {
+      toast.error("Only managers can edit properties.");
+      return;
+    }
 
-    formData.append("managerCognitoId", managerId);
+    try {
+      const requestBody = {
+        name: data.name,
+        description: data.description,
+        pricePerMonth: parseFloat(String(data.pricePerMonth)),
+        securityDeposit: parseFloat(String(data.securityDeposit)),
+        applicationFee: parseFloat(String(data.applicationFee)),
+        isPetsAllowed: data.isPetsAllowed,
+        isParkingIncluded: data.isParkingIncluded,
+        beds: parseInt(String(data.beds)),
+        baths: parseFloat(String(data.baths)),
+        squareFeet: parseInt(String(data.squareFeet)),
+        propertyType: data.propertyType,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        country: data.country,
+        postalCode: data.postalCode,
+        amenities: data.amenities ? [data.amenities] : [],
+        highlights: data.highlights ? [data.highlights] : [],
+        coordinates:
+          data.latitude && data.longitude
+            ? {
+                lat: parseFloat(String(data.latitude)),
+                lng: parseFloat(String(data.longitude)),
+              }
+            : undefined,
+      };
 
-    await updateProperty({ id: propertyId, propertyData: formData });
-    router.push(`/managers/properties/${propertyId}`);
+      console.log("📤 Updating property with data:", requestBody);
+
+      await updateProperty({
+        id: propertyId,
+        propertyData: requestBody,
+      }).unwrap();
+
+      toast.success("Property updated successfully!");
+      router.push(`/managers/properties/${propertyId}`);
+    } catch (error: any) {
+      console.error("❌ Error updating property:", error);
+      const errorMessage =
+        error?.data?.message || error?.message || "Failed to update property";
+      toast.error(errorMessage);
+    }
   };
 
   if (propertyLoading) return <Loading />;

@@ -7,11 +7,13 @@ import { downloadAgreementFile } from "@/lib/agreementDownload";
 import { useGetApplicationsQuery, useGetAuthUserQuery } from "@/state/api";
 import { CircleCheckBig, Clock, Download, XCircle } from "lucide-react";
 import React from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const Applications = () => {
+  const { user } = useAuth(); // ✅ Get user from context
   const { data: authUser, isLoading: authLoading } = useGetAuthUserQuery();
-  const isTenant = authUser?.userRole?.toLowerCase() === "tenant";
-  const tenantId = authUser?.cognitoInfo?.userId;
+  const isTenant = user?.role?.toLowerCase() === "tenant";
+  const tenantId = user?.id;
 
   const {
     data: applications,
@@ -82,8 +84,8 @@ const Applications = () => {
                     downloadAgreementFile({
                       agreementId: String(application.id),
                       propertyName: application.property?.name,
-                      tenantName: authUser?.userInfo?.name,
-                      tenantEmail: authUser?.userInfo?.email,
+                      tenantName: authUser?.userInfo?.name || user?.name,
+                      tenantEmail: authUser?.userInfo?.email || user?.email,
                       managerName: application.manager?.name,
                       status: application.status,
                       startDate: application.lease?.startDate,

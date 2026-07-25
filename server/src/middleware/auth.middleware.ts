@@ -6,7 +6,6 @@ export interface AuthRequest extends Request {
     id: string;
     email: string;
     role: string;
-    cognitoId?: string; // Keep for backward compatibility
   };
 }
 
@@ -39,7 +38,6 @@ export const authMiddleware = (allowedRoles: string[] = []) => {
         id: decoded.id,
         email: decoded.email,
         role: decoded.role,
-        cognitoId: decoded.id, // Keep for backward compatibility
       };
 
       next();
@@ -53,7 +51,7 @@ export const authMiddleware = (allowedRoles: string[] = []) => {
   };
 };
 
-// Helper middleware to extract user from token without requiring authentication
+// Optional auth middleware
 export const optionalAuth = (
   req: AuthRequest,
   res: Response,
@@ -70,7 +68,6 @@ export const optionalAuth = (
         id: decoded.id,
         email: decoded.email,
         role: decoded.role,
-        cognitoId: decoded.id,
       };
     }
     next();

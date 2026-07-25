@@ -105,22 +105,95 @@ async function seedModel(modelName: string, data: any[]): Promise<void> {
     let processedData = data;
 
     if (modelName === "Property") {
-      processedData = data.map(({ postedDate, ...rest }) => rest);
+      processedData = data.map(({ postedDate, managerCognitoId, ...rest }) => ({
+        ...rest,
+        managerUserId: rest.managerCognitoId || rest.managerUserId, // Map to new field
+      }));
+    } else if (modelName === "Tenant") {
+      processedData = data.map(({ cognitoId, ...rest }) => ({
+        ...rest,
+        userId: cognitoId, // Map cognitoId to userId
+      }));
+    } else if (modelName === "Manager") {
+      processedData = data.map(({ cognitoId, ...rest }) => ({
+        ...rest,
+        userId: cognitoId, // Map cognitoId to userId
+      }));
     } else if (modelName === "Application") {
-      processedData = data.map(
-        ({ name, email, phoneNumber, applicationDate, ...rest }) => rest,
-      );
+      processedData = data.map(({ tenantCognitoId, ...rest }) => ({
+        ...rest,
+        tenantUserId: tenantCognitoId, // Map tenantCognitoId to tenantUserId
+      }));
+    } else if (modelName === "Lease") {
+      processedData = data.map(({ tenantCognitoId, ...rest }) => ({
+        ...rest,
+        tenantUserId: tenantCognitoId, // Map tenantCognitoId to tenantUserId
+      }));
     } else if (modelName === "Payment") {
       processedData = data.map(({ lease, ...rest }) => ({
         ...rest,
         leaseId: lease?.connect?.id,
       }));
+    } else if (modelName === "Property") {
+      processedData = data.map(({ postedDate, ...rest }) => rest);
+    } else if (modelName === "Application") {
+      processedData = data.map(
+        ({ name, email, phoneNumber, applicationDate, ...rest }) => rest,
+      );
     }
 
     // Tenant has relations, so we need to use individual creates
     // createMany doesn't support nested relations
     if (modelName === "Tenant") {
       for (const item of processedData) {
+        // Check if user exists before creating tenant
+        const userExists = await prisma.user.findUnique({
+          where: { id: item.userId },
+        });
+
+        if (!userExists) {
+          console.warn(
+            `User with id ${item.userId} not found, creating user...`,
+          );
+          // Create user if it doesn't exist
+          await prisma.user.create({
+            data: {
+              id: item.userId,
+              email: item.email,
+              password: "hashedpassword123", // This should be hashed in production
+              name: item.name,
+              role: "tenant",
+            },
+          });
+        }
+
+        await model.create({
+          data: item,
+        });
+      }
+    } else if (modelName === "Manager") {
+      for (const item of processedData) {
+        // Check if user exists before creating manager
+        const userExists = await prisma.user.findUnique({
+          where: { id: item.userId },
+        });
+
+        if (!userExists) {
+          console.warn(
+            `User with id ${item.userId} not found, creating user...`,
+          );
+          // Create user if it doesn't exist
+          await prisma.user.create({
+            data: {
+              id: item.userId,
+              email: item.email,
+              password: "hashedpassword123", // This should be hashed in production
+              name: item.name,
+              role: "manager",
+            },
+          });
+        }
+
         await model.create({
           data: item,
         });
@@ -153,25 +226,26 @@ async function linkTenantsToProperties(leases: any[]): Promise<void> {
   const propertyTenantMap = new Map<number, Set<string>>();
 
   for (const lease of leases) {
+    const tenantUserId = lease.tenantUserId || lease.tenantCognitoId;
     if (!propertyTenantMap.has(lease.propertyId)) {
       propertyTenantMap.set(lease.propertyId, new Set());
     }
-    propertyTenantMap.get(lease.propertyId)!.add(lease.tenantCognitoId);
+    if (tenantUserId) {
+      propertyTenantMap.get(lease.propertyId)!.add(tenantUserId);
+    }
   }
 
   // For each property, connect its tenants
-  for (const [propertyId, tenantCognitoIds] of propertyTenantMap.entries()) {
+  for (const [propertyId, tenantUserIds] of propertyTenantMap.entries()) {
     try {
-      for (const cognitoId of tenantCognitoIds) {
+      for (const userId of tenantUserIds) {
         // Check if tenant exists
         const tenant = await prisma.tenant.findUnique({
-          where: { cognitoId },
+          where: { userId },
         });
 
         if (!tenant) {
-          console.warn(
-            `Tenant with cognitoId ${cognitoId} not found, skipping...`,
-          );
+          console.warn(`Tenant with userId ${userId} not found, skipping...`);
           continue;
         }
 
@@ -180,12 +254,12 @@ async function linkTenantsToProperties(leases: any[]): Promise<void> {
           where: { id: propertyId },
           data: {
             tenants: {
-              connect: { cognitoId },
+              connect: { userId },
             },
           },
         });
 
-        console.log(`Linked tenant ${cognitoId} to property ${propertyId}`);
+        console.log(`Linked tenant ${userId} to property ${propertyId}`);
       }
     } catch (error) {
       console.error(`Error linking tenants to property ${propertyId}:`, error);

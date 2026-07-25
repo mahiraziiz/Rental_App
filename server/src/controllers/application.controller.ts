@@ -1,186 +1,102 @@
 import { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
-import prisma from "../db/index";
+import prisma from "../db";
 
-type AuthenticatedRequest = Request & {
-  user?: Record<string, unknown>;
+// Helper to get string from params
+const getParamString = (
+  param: string | string[] | undefined,
+): string | undefined => {
+  if (typeof param === "string") return param;
+  if (Array.isArray(param) && param.length > 0) return param[0];
+  return undefined;
 };
 
-const extractPossibleCognitoIds = (
-  req: AuthenticatedRequest,
-  userIdFromQuery?: string,
-): string[] => {
-  const tokenUser = req.user ?? {};
-
-  const rawValues = [
-    userIdFromQuery,
-    tokenUser.sub,
-    tokenUser.username,
-    tokenUser["cognito:username"],
-    tokenUser.userId,
-  ];
-
-  return Array.from(
-    new Set(
-      rawValues.filter(
-        (value): value is string =>
-          typeof value === "string" && value.trim().length > 0,
-      ),
-    ),
-  );
-};
-
-const resolveUserRole = (
-  req: AuthenticatedRequest,
-  userTypeFromQuery?: string,
-): "manager" | "tenant" | null => {
-  const tokenUser = req.user ?? {};
-  const tokenRole = (
-    typeof tokenUser["custom:role"] === "string"
-      ? tokenUser["custom:role"]
-      : typeof tokenUser.role === "string"
-        ? tokenUser.role
-        : ""
-  )
-    .toLowerCase()
-    .trim();
-
-  if (tokenRole === "manager" || tokenRole === "tenant") {
-    return tokenRole;
-  }
-
-  const normalizedQueryRole = (userTypeFromQuery || "").toLowerCase().trim();
-  if (normalizedQueryRole === "manager" || normalizedQueryRole === "tenant") {
-    return normalizedQueryRole;
-  }
-
-  return null;
-};
-
-const listApplications = async (
-  req: AuthenticatedRequest,
-  res: Response,
-): Promise<void> => {
+// Get applications with filters
+const getApplications = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId, userType } = req.query;
 
-    const resolvedRole = resolveUserRole(
-      req,
-      typeof userType === "string" ? userType : undefined,
-    );
-    const possibleUserIds = extractPossibleCognitoIds(
-      req,
-      typeof userId === "string" ? userId : undefined,
-    );
+    const where: any = {};
 
-    if (!resolvedRole) {
-      res.status(400).json({
-        message:
-          "Unable to resolve user identity for application filtering. Please sign in again.",
-      });
-      return;
+    if (userId && userType) {
+      if (userType === "tenant") {
+        where.tenantUserId = userId as string;
+      } else if (userType === "manager") {
+        where.property = {
+          managerUserId: userId as string,
+        };
+      }
     }
-
-    if (possibleUserIds.length === 0) {
-      res.status(400).json({
-        message:
-          "Unable to resolve user identity for application filtering. Please sign in again.",
-      });
-      return;
-    }
-
-    const whereClause: Prisma.ApplicationWhereInput =
-      resolvedRole === "tenant"
-        ? {
-            tenantCognitoId: {
-              in: possibleUserIds,
-            },
-          }
-        : {};
 
     const applications = await prisma.application.findMany({
-      where: whereClause,
+      where,
       include: {
         property: {
           include: {
             location: true,
-            manager: true,
+            manager: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         },
-        tenant: true,
+        tenant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+              },
+            },
+          },
+        },
+        lease: true,
+      },
+      orderBy: {
+        applicationDate: 'desc',
       },
     });
 
-    function calculateNextPaymentDate(startDate: Date): Date {
-      const today = new Date();
-      const nextPaymentDate = new Date(startDate);
-      while (nextPaymentDate <= today) {
-        nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
-      }
-      return nextPaymentDate;
-    }
-
-    const formattedApplications = await Promise.all(
-      applications.map(async (app: (typeof applications)[number]) => {
-        const lease = await prisma.lease.findFirst({
-          where: {
-            tenant: {
-              cognitoId: app.tenantCognitoId,
-            },
-            propertyId: app.propertyId,
-          },
-          orderBy: {
-            startDate: "desc",
-          },
-        });
-
-        return {
-          ...app,
-          property: {
-            ...app.property,
-            address: app.property.location.address,
-          },
-          manager: app.property.manager,
-          lease: lease
-            ? {
-                ...lease,
-                nextPaymentDate: calculateNextPaymentDate(lease.startDate),
-              }
-            : null,
-        };
-      }),
-    );
-
-    res.json(formattedApplications);
+    res.json(applications);
   } catch (error: any) {
-    res
-      .status(500)
-      .json({ message: `Error retrieving applications: ${error.message}` });
+    console.error("Error fetching applications:", error);
+    res.status(500).json({
+      message: `Error fetching applications: ${error.message}`,
+    });
   }
 };
 
-const createApplication = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+// Create application
+const createApplication = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
-      applicationDate,
-      status,
       propertyId,
-      tenantCognitoId,
-      name,
-      email,
-      phoneNumber,
+      tenantUserId,
       message,
+      status = "Pending",
     } = req.body;
 
+    console.log("📝 Create Application Request:", {
+      propertyId,
+      tenantUserId,
+      message,
+    });
+
+    if (!propertyId || !tenantUserId) {
+      res.status(400).json({ message: "propertyId and tenantUserId are required" });
+      return;
+    }
+
+    // Check if property exists
     const property = await prisma.property.findUnique({
-      where: { id: propertyId },
-      select: {
-        pricePerMonth: true,
-        securityDeposit: true,
-      },
+      where: { id: parseInt(propertyId) },
     });
 
     if (!property) {
@@ -188,166 +104,152 @@ const createApplication = async (
       return;
     }
 
-    const newApplication = await prisma.$transaction(
-      async (prisma: Prisma.TransactionClient) => {
-        // Create lease first
-        const lease = await prisma.lease.create({
-          data: {
-            startDate: new Date(), // Today
-            endDate: new Date(
-              new Date().setFullYear(new Date().getFullYear() + 1),
-            ), // 1 year from today
-            rent: property.pricePerMonth,
-            deposit: property.securityDeposit,
-            property: {
-              connect: {
-                id: propertyId,
-              },
-            },
-            tenant: {
-              connect: {
-                cognitoId: tenantCognitoId,
-              },
-            },
-          },
-        });
+    // Check if tenant exists using userId
+    const tenant = await prisma.tenant.findUnique({
+      where: { userId: tenantUserId },
+    });
 
-        // Then create application with lease connection
-        const application = await prisma.application.create({
-          data: {
-            applicationDate: new Date(applicationDate),
-            status,
-            message,
-            property: {
-              connect: {
-                id: propertyId,
-              },
-            },
-            tenant: {
-              connect: {
-                cognitoId: tenantCognitoId,
-              },
-            },
-            lease: {
-              connect: {
-                id: lease.id,
-              },
-            },
-          },
-          include: {
-            property: true,
-            tenant: true,
-            lease: true,
-          },
-        });
+    if (!tenant) {
+      res.status(404).json({ message: "Tenant not found" });
+      return;
+    }
 
-        return application;
+    // Check if application already exists
+    const existingApplication = await prisma.application.findFirst({
+      where: {
+        propertyId: parseInt(propertyId),
+        tenantUserId: tenantUserId,
+        status: {
+          in: ["Pending", "Approved"],
+        },
       },
-    );
+    });
 
-    res.status(201).json(newApplication);
+    if (existingApplication) {
+      res.status(400).json({ message: "You already have an active application for this property" });
+      return;
+    }
+
+    const application = await prisma.application.create({
+      data: {
+        propertyId: parseInt(propertyId),
+        tenantUserId: tenantUserId,
+        message: message || "",
+        status: status as any,
+      },
+      include: {
+        property: {
+          include: {
+            location: true,
+          },
+        },
+        tenant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log("✅ Application created successfully:", application.id);
+    res.status(201).json(application);
   } catch (error: any) {
+    console.error("Error creating application:", error);
     res.status(500).json({
       message: `Error creating application: ${error.message}`,
     });
   }
 };
 
-const updateApplicationStatus = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+// Update application status
+const updateApplicationStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
-    console.log("status:", status);
+    const applicationId = parseInt(getParamString(id) || "0");
 
-    const application = await prisma.application.findUnique({
-      where: {
-        id: Number(id),
-      },
-      include: {
-        property: true,
-        tenant: true,
-      },
-    });
-
-    if (!application) {
-      res.status(404).json({ message: "Application not found." });
+    if (isNaN(applicationId)) {
+      res.status(400).json({ message: "Invalid application ID" });
       return;
     }
 
-    if (status === "Approved") {
-      const newLease = await prisma.lease.create({
-        data: {
-          startDate: new Date(),
-          endDate: new Date(
-            new Date().setFullYear(new Date().getFullYear() + 1),
-          ),
-          rent: application.property.pricePerMonth,
-          deposit: application.property.securityDeposit,
-          propertyId: application.propertyId,
-          tenantCognitoId: application.tenantCognitoId,
-        },
-      });
+    const { status } = req.body;
 
-      // Update the property to connect the tenant
-      await prisma.property.update({
-        where: {
-          id: application.propertyId,
+    if (!status) {
+      res.status(400).json({ message: "Status is required" });
+      return;
+    }
+
+    const application = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status,
+      },
+      include: {
+        property: {
+          include: {
+            location: true,
+          },
         },
-        data: {
-          tenants: {
-            connect: {
-              cognitoId: application.tenantCognitoId,
+        tenant: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+              },
             },
           },
         },
-      });
-
-      // Update the application with the new lease ID
-      await prisma.application.update({
-        where: {
-          id: Number(id),
-        },
-        data: {
-          status,
-          leaseId: newLease.id,
-        },
-        include: {
-          property: true,
-          tenant: true,
-          lease: true,
-        },
-      });
-    } else {
-      // Update the application status (for both "Denied" and other statuses)
-      await prisma.application.update({
-        where: {
-          id: Number(id),
-        },
-        data: {
-          status,
-        },
-      });
-    }
-
-    // Respond with the updated application details
-    const updatedApplication = await prisma.application.findUnique({
-      where: { id: Number(id) },
-      include: {
-        property: true,
-        tenant: true,
         lease: true,
       },
     });
 
-    res.json(updatedApplication);
+    // If approved, create a lease
+    if (status === "Approved") {
+      const lease = await prisma.lease.create({
+        data: {
+          propertyId: application.propertyId,
+          tenantUserId: application.tenantUserId,
+          startDate: new Date(),
+          endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+          rent: application.property.pricePerMonth,
+          deposit: application.property.securityDeposit,
+          isActive: true,
+        },
+      });
+
+      // Update application with lease ID
+      await prisma.application.update({
+        where: { id: applicationId },
+        data: {
+          leaseId: lease.id,
+        },
+      });
+
+      res.json({
+        ...application,
+        lease,
+      });
+    } else {
+      res.json(application);
+    }
   } catch (error: any) {
+    console.error("Error updating application status:", error);
     res.status(500).json({
       message: `Error updating application status: ${error.message}`,
     });
   }
 };
 
-export { listApplications, createApplication, updateApplicationStatus };
+export {
+  getApplications,
+  createApplication,
+  updateApplicationStatus,
+};

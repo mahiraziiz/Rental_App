@@ -12,6 +12,14 @@ import { useCreateApplicationMutation, useGetAuthUserQuery } from "@/state/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import React from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+
+interface ApplicationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  propertyId: number;
+}
 
 const ApplicationModal = ({
   isOpen,
@@ -19,39 +27,45 @@ const ApplicationModal = ({
   propertyId,
 }: ApplicationModalProps) => {
   const [createApplication] = useCreateApplicationMutation();
+  const { user } = useAuth();
   const { data: authUser } = useGetAuthUserQuery();
 
   const form = useForm<ApplicationFormData>({
     resolver: zodResolver(applicationSchema),
     defaultValues: {
-      name: "",
-      email: "",
-      phoneNumber: "",
       message: "",
     },
   });
 
   const onSubmit = async (data: ApplicationFormData) => {
-    if (!authUser || authUser.userRole?.toLowerCase() !== "tenant") {
-      console.error(
-        "You must be logged in as a tenant to submit an application",
-      );
+    if (!user) {
+      toast.error("Please login to submit an application");
+      return;
+    }
+
+    if (user.role?.toLowerCase() !== "tenant") {
+      toast.error("Only tenants can submit applications");
       return;
     }
 
     try {
       await createApplication({
-        ...data,
-        applicationDate: new Date().toISOString(),
+        message: data.message,
         status: "Pending",
-        propertyId,
-        tenantCognitoId: authUser.cognitoInfo.userId,
+        propertyId: propertyId,
+        tenantUserId: user.id,
       }).unwrap();
 
+      toast.success("Application submitted successfully!");
       form.reset();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Application submission failed", error);
+      const errorMessage =
+        error?.data?.message ||
+        error?.message ||
+        "Failed to submit application";
+      toast.error(errorMessage);
     }
   };
 
@@ -63,24 +77,6 @@ const ApplicationModal = ({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-            <CustomFormField
-              name="name"
-              label="Name"
-              type="text"
-              placeholder="Enter your full name"
-            />
-            <CustomFormField
-              name="email"
-              label="Email"
-              type="email"
-              placeholder="Enter your email address"
-            />
-            <CustomFormField
-              name="phoneNumber"
-              label="Phone Number"
-              type="text"
-              placeholder="Enter your phone number"
-            />
             <CustomFormField
               name="message"
               label="Message (Optional)"

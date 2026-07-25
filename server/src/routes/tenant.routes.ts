@@ -8,15 +8,20 @@ import {
   removeFavoriteProperty,
   deleteTenant,
 } from "../controllers/tenant.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
+// Public routes
 router.get("/:id", getTenant);
-router.delete("/:id", deleteTenant);
-router.put("/:id", updateTenant);
 router.post("/", createTenant);
+
+// Protected routes
+router.use(authMiddleware(["tenant", "manager"]));
+router.put("/:id", updateTenant);
+router.delete("/:id", deleteTenant);
 router.get("/:id/current-residences", getCurrentResidences);
-router.post("/:id/favorites/:propertyId", addFavoriteProperty);
-router.delete("/:id/favorites/:propertyId", removeFavoriteProperty);
+router.post("/:userId/favorites/:propertyId", addFavoriteProperty);
+router.delete("/:userId/favorites/:propertyId", removeFavoriteProperty);
 
 export default router;

@@ -65,7 +65,7 @@ enum PaymentStatus {
   Refunded
 }
 
-// SIMPLIFIED: User model without direct relations to Tenant/Manager
+// User model - Main auth table
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -75,7 +75,44 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relations
+  tenant  Tenant?
+  manager Manager?
+
   @@map("users")
+}
+
+// Tenant profile - linked to User by userId
+model Tenant {
+  id          Int      @id @default(autoincrement())
+  userId      String   @unique // References User.id (JWT ID)
+  name        String
+  email       String   @unique
+  phoneNumber String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  properties   Property[]    @relation("TenantProperties")
+  favorites    Property[]    @relation("TenantFavorites")
+  applications Application[]
+  leases       Lease[]
+}
+
+// Manager profile - linked to User by userId
+model Manager {
+  id          Int      @id @default(autoincrement())
+  userId      String   @unique // References User.id (JWT ID)
+  name        String
+  email       String   @unique
+  phoneNumber String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  managedProperties Property[] @relation("ManagerProperties")
 }
 
 model Property {
@@ -98,43 +135,17 @@ model Property {
   averageRating     Float?       @default(0)
   numberOfReviews   Int?         @default(0)
   locationId        Int
-  managerCognitoId  String // This stores user.id
+  managerUserId     String // References User.id (JWT ID)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
+  // Relations
   location     Location      @relation(fields: [locationId], references: [id])
-  manager      Manager       @relation(fields: [managerCognitoId], references: [cognitoId])
+  manager      Manager       @relation("ManagerProperties", fields: [managerUserId], references: [userId])
   leases       Lease[]
   applications Application[]
   favoritedBy  Tenant[]      @relation("TenantFavorites")
   tenants      Tenant[]      @relation("TenantProperties")
-}
-
-model Manager {
-  id          Int      @id @default(autoincrement())
-  cognitoId   String   @unique // Stores user.id
-  name        String
-  email       String   @unique
-  phoneNumber String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  managedProperties Property[]
-}
-
-model Tenant {
-  id          Int      @id @default(autoincrement())
-  cognitoId   String   @unique // Stores user.id
-  name        String
-  email       String   @unique
-  phoneNumber String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  properties   Property[]    @relation("TenantProperties")
-  favorites    Property[]    @relation("TenantFavorites")
-  applications Application[]
-  leases       Lease[]
 }
 
 model Location {
@@ -147,6 +158,7 @@ model Location {
   coordinates Unsupported("geography(Point, 4326)")
   createdAt   DateTime                              @default(now())
 
+  // Relations
   properties Property[]
 }
 
@@ -155,31 +167,33 @@ model Application {
   applicationDate DateTime          @default(now())
   status          ApplicationStatus @default(Pending)
   propertyId      Int
-  tenantCognitoId String // Stores user.id
+  tenantUserId    String // References User.id (JWT ID)
   message         String?
   leaseId         Int?              @unique
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  // Relations
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant   Tenant   @relation(fields: [tenantCognitoId], references: [cognitoId], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantUserId], references: [userId], onDelete: Cascade)
   lease    Lease?   @relation(fields: [leaseId], references: [id])
 }
 
 model Lease {
-  id              Int      @id @default(autoincrement())
-  startDate       DateTime
-  endDate         DateTime
-  rent            Float
-  deposit         Float
-  propertyId      Int
-  tenantCognitoId String // Stores user.id
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  startDate    DateTime
+  endDate      DateTime
+  rent         Float
+  deposit      Float
+  propertyId   Int
+  tenantUserId String // References User.id (JWT ID)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
+  // Relations
   property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant      Tenant       @relation(fields: [tenantCognitoId], references: [cognitoId], onDelete: Cascade)
+  tenant      Tenant       @relation(fields: [tenantUserId], references: [userId], onDelete: Cascade)
   application Application?
   payments    Payment[]
 }
@@ -195,8 +209,10 @@ model Payment {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  // Relations
   lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
 
+  // Indexes
   @@index([leaseId, dueDate])
   @@index([paymentStatus])
 }

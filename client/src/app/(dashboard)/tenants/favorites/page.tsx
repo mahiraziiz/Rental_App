@@ -11,15 +11,18 @@ import {
 } from "@/state/api";
 import { useAppSelector } from "@/state/redux";
 import React from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const Favorites = () => {
+  const { user } = useAuth(); // ✅ Get user from context
   const { data: authUser } = useGetAuthUserQuery();
   const filters = useAppSelector((state) => state.global.filters);
-  const isTenant = authUser?.userRole?.toLowerCase() === "tenant";
+  const isTenant = user?.role?.toLowerCase() === "tenant"; // ✅ Use user from context
+
   const { data: tenant } = useGetTenantQuery(
-    authUser?.cognitoInfo?.userId || "",
+    user?.id || "",
     {
-      skip: !authUser?.cognitoInfo?.userId || !isTenant,
+      skip: !user?.id || !isTenant,
     },
   );
 

@@ -9,23 +9,23 @@ import {
   useGetTenantQuery,
 } from "@/state/api";
 import React from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const Residences = () => {
+  const { user } = useAuth();
   const { data: authUser } = useGetAuthUserQuery();
-  const isTenant = authUser?.userRole?.toLowerCase() === "tenant";
-  const { data: tenant } = useGetTenantQuery(
-    authUser?.cognitoInfo?.userId || "",
-    {
-      skip: !authUser?.cognitoInfo?.userId || !isTenant,
-    },
-  );
+  const isTenant = user?.role?.toLowerCase() === "tenant";
+
+  const { data: tenant } = useGetTenantQuery(user?.id || "", {
+    skip: !user?.id || !isTenant,
+  });
 
   const {
     data: currentResidences,
     isLoading,
     error,
-  } = useGetCurrentResidencesQuery(authUser?.cognitoInfo?.userId || "", {
-    skip: !authUser?.cognitoInfo?.userId || !isTenant,
+  } = useGetCurrentResidencesQuery(user?.id || "", {
+    skip: !user?.id || !isTenant,
   });
 
   if (isLoading) return <Loading />;

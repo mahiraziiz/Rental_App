@@ -1,15 +1,17 @@
 import express from "express";
-import { authMiddleware } from "../middleware/auth.middleware";
 import {
+  getApplications,
   createApplication,
-  listApplications,
   updateApplicationStatus,
 } from "../controllers/application.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.post("/", authMiddleware(["tenant"]), createApplication);
-router.put("/:id/status", authMiddleware(["manager"]), updateApplicationStatus);
-router.get("/", authMiddleware(["manager", "tenant"]), listApplications);
+// Protected routes
+router.use(authMiddleware(["tenant", "manager"]));
+router.get("/", getApplications);
+router.post("/", createApplication);
+router.put("/:id/status", updateApplicationStatus);
 
 export default router;
