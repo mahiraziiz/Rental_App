@@ -3,7 +3,6 @@
 
 import {
   useAddFavoritePropertyMutation,
-  useGetAuthUserQuery,
   useGetPropertiesQuery,
   useGetTenantQuery,
   useRemoveFavoritePropertyMutation,
@@ -24,15 +23,21 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
+// Define error interface
+interface ApiError {
+  data?: {
+    message?: string;
+  };
+  message?: string;
+}
+
 const Listings = () => {
   const { user } = useAuth();
-  const { data: authUser } = useGetAuthUserQuery();
   const isTenant = user?.role?.toLowerCase() === "tenant";
   const [isTogglingFavorite, setIsTogglingFavorite] = useState<number | null>(
     null,
   );
 
-  // Use user.id for the tenant query
   const { data: tenant, refetch: refetchTenant } = useGetTenantQuery(
     user?.id || "",
     {
@@ -62,7 +67,6 @@ const Listings = () => {
       ? "selected area"
       : "all locations");
 
-  // Update the handleFavoriteToggle function
   const handleFavoriteToggle = async (propertyId: number) => {
     if (!user) {
       toast.error("Please login to add favorites");
@@ -89,24 +93,27 @@ const Listings = () => {
 
       if (isFavorite) {
         const result = await removeFavorite({
-          userId: user.id, // Changed from cognitoId to userId
+          userId: user.id,
           propertyId,
         }).unwrap();
         console.log("✅ Remove favorite result:", result);
         toast.success("Removed from favorites");
       } else {
         const result = await addFavorite({
-          userId: user.id, // Changed from cognitoId to userId
+          userId: user.id,
           propertyId,
         }).unwrap();
         console.log("✅ Add favorite result:", result);
         toast.success("Added to favorites");
       }
       await refetchTenant();
-    } catch (error: any) {
+    } catch (error) {
       console.error("❌ Favorite toggle error:", error);
+      const apiError = error as ApiError;
       const errorMessage =
-        error?.data?.message || error?.message || "Failed to update favorites";
+        apiError?.data?.message ||
+        apiError?.message ||
+        "Failed to update favorites";
       toast.error(errorMessage);
     } finally {
       setIsTogglingFavorite(null);

@@ -1,4 +1,4 @@
-import { cleanParams, createNewUserInDatabase, withToast } from "@/lib/utils";
+import { cleanParams, withToast } from "@/lib/utils";
 import {
   Application,
   Lease,
@@ -9,6 +9,22 @@ import {
 } from "@/types/prismaTypes";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { FiltersState } from ".";
+
+// Define types
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+interface UserDetailsResponse {
+  data: User;
+}
+
+interface PropertyData {
+  [key: string]: unknown;
+}
 
 export const api = createApi({
   baseQuery: fetchBaseQuery({
@@ -59,10 +75,9 @@ export const api = createApi({
             };
           }
 
-          const userData = response.data as { data: User };
+          const userData = response.data as UserDetailsResponse;
           const user = userData.data;
 
-          // Use user.id directly
           const userRole = user.role;
           const endpoint =
             userRole === "manager"
@@ -71,7 +86,6 @@ export const api = createApi({
 
           let userDetailsResponse = await fetchWithBQ(endpoint);
 
-          // If user doesn't exist, create new user profile
           if (
             userDetailsResponse.error &&
             userDetailsResponse.error.status === 404
@@ -362,7 +376,7 @@ export const api = createApi({
       },
     }),
 
-    createProperty: build.mutation<Property, any>({
+    createProperty: build.mutation<Property, PropertyData>({
       query: (propertyData) => ({
         url: `properties`,
         method: "POST",
@@ -389,42 +403,43 @@ export const api = createApi({
       },
     }),
 
-    updateProperty: build.mutation<Property, { id: number; propertyData: any }>(
-      {
-        query: ({ id, propertyData }) => ({
-          url: `properties/${id}`,
-          method: "PUT",
-          body: propertyData,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }),
-        invalidatesTags: (result, error, { id }) => [
-          {
-            type: "PropertyDetails",
-            id,
-          },
-          {
-            type: "Properties",
-            id,
-          },
-          {
-            type: "Properties",
-            id: "LIST",
-          },
-          {
-            type: "Managers",
-            id: result?.manager?.id,
-          },
-        ],
-        async onQueryStarted(_, { queryFulfilled }) {
-          await withToast(queryFulfilled, {
-            success: "Property updated successfully!",
-            error: "Failed to update property.",
-          });
+    updateProperty: build.mutation<
+      Property,
+      { id: number; propertyData: PropertyData }
+    >({
+      query: ({ id, propertyData }) => ({
+        url: `properties/${id}`,
+        method: "PUT",
+        body: propertyData,
+        headers: {
+          "Content-Type": "application/json",
         },
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        {
+          type: "PropertyDetails",
+          id,
+        },
+        {
+          type: "Properties",
+          id,
+        },
+        {
+          type: "Properties",
+          id: "LIST",
+        },
+        {
+          type: "Managers",
+          id: result?.manager?.id,
+        },
+      ],
+      async onQueryStarted(_, { queryFulfilled }) {
+        await withToast(queryFulfilled, {
+          success: "Property updated successfully!",
+          error: "Failed to update property.",
+        });
       },
-    ),
+    }),
 
     getLeases: build.query<Lease[], string | void>({
       query: (userId) => {

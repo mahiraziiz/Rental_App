@@ -4,8 +4,20 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 
+interface RegisterError {
+  message: string;
+}
+
+interface RegisterFormData {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  role: string;
+}
+
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegisterFormData>({
     name: "",
     email: "",
     password: "",
@@ -18,7 +30,6 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check if passwords match
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -31,8 +42,9 @@ export default function RegisterPage() {
         password: formData.password,
         role: formData.role,
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const error = err as RegisterError;
+      setError(error.message || "An error occurred during registration");
     }
   };
 

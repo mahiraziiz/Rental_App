@@ -11,9 +11,42 @@ import { useRouter } from "next/navigation";
 import React, { useMemo } from "react";
 import { toast } from "sonner";
 
+// Define the User type with userInfo
+interface UserInfo {
+  name: string;
+  email: string;
+  phoneNumber?: string;
+}
+
+interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  userInfo?: UserInfo;
+  userRole?: string;
+}
+
+// Define error interface
+interface ApiError {
+  data?: {
+    message?: string;
+  };
+  message?: string;
+}
+
+interface SettingsData {
+  name: string;
+  email: string;
+  phoneNumber: string;
+}
+
 const TenantSettings = () => {
-  const { user } = useAuth(); // ✅ Get user from context
-  const { data: authUser, isLoading } = useGetAuthUserQuery();
+  const { user } = useAuth();
+  const { data: authUser, isLoading } = useGetAuthUserQuery() as {
+    data: AuthUser | undefined;
+    isLoading: boolean;
+  };
   const [updateTenant] = useUpdateTenantSettingsMutation();
   const [deleteTenantAccount] = useDeleteTenantAccountMutation();
   const { logout } = useAuth();
@@ -36,16 +69,17 @@ const TenantSettings = () => {
 
   if (isLoading || !authUser) return <>Loading...</>;
 
-  const handleSubmit = async (data: typeof initialData) => {
+  const handleSubmit = async (data: SettingsData) => {
     try {
       await updateTenant({
-        userId: user?.id, 
+        userId: user?.id,
         ...data,
       }).unwrap();
       toast.success("Settings updated successfully!");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error updating settings:", error);
-      toast.error(error?.data?.message || "Failed to update settings");
+      const apiError = error as ApiError;
+      toast.error(apiError?.data?.message || "Failed to update settings");
     }
   };
 
@@ -55,17 +89,18 @@ const TenantSettings = () => {
         toast.error("No user ID found");
         return;
       }
-      
+
       await deleteTenantAccount({
-        userId: user.id, 
+        userId: user.id,
       }).unwrap();
-      
+
       await logout();
       router.replace("/login");
       toast.success("Account deleted successfully");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error deleting account:", error);
-      toast.error(error?.data?.message || "Failed to delete account");
+      const apiError = error as ApiError;
+      toast.error(apiError?.data?.message || "Failed to delete account");
     }
   };
 

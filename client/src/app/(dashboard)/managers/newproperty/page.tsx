@@ -15,6 +15,14 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
+// Define error interface
+interface ApiError {
+  data?: {
+    message?: string;
+  };
+  message?: string;
+}
+
 const NewProperty = () => {
   const [createProperty] = useCreatePropertyMutation();
   const { data: authUser, isLoading } = useGetAuthUserQuery();
@@ -49,13 +57,11 @@ const NewProperty = () => {
   });
 
   const onSubmit = async (data: PropertyFormInput) => {
-    // Check if user is authenticated
     if (!authUser?.id) {
       toast.error("No manager ID found. Please login again.");
       return;
     }
 
-    // Check if user is a manager
     if (authUser.role?.toLowerCase() !== "manager") {
       toast.error("Only managers can create properties.");
       return;
@@ -64,7 +70,6 @@ const NewProperty = () => {
     try {
       console.log("📝 Creating property with data:", data);
 
-      // Create the request body as JSON instead of FormData
       const requestBody = {
         name: data.name,
         description: data.description,
@@ -82,8 +87,8 @@ const NewProperty = () => {
         state: data.state,
         country: data.country,
         postalCode: data.postalCode,
-        managerUserId: authUser.id, // ✅ Use the JWT user ID
-        photoUrls: [], // Will be handled separately if needed
+        managerUserId: authUser.id,
+        photoUrls: [],
         amenities: data.amenities ? [data.amenities] : [],
         highlights: data.highlights ? [data.highlights] : [],
         coordinates:
@@ -95,15 +100,16 @@ const NewProperty = () => {
             : undefined,
       };
 
-      // console.log("📤 Sending request body:", requestBody);
-
-      const result = await createProperty(requestBody).unwrap();
+      await createProperty(requestBody).unwrap();
       toast.success("Property created successfully!");
       router.push("/managers/properties");
-    } catch (error: any) {
+    } catch (error) {
       console.error("❌ Error creating property:", error);
+      const apiError = error as ApiError;
       const errorMessage =
-        error?.data?.message || error?.message || "Failed to create property";
+        apiError?.data?.message ||
+        apiError?.message ||
+        "Failed to create property";
       toast.error(errorMessage);
     }
   };
@@ -294,14 +300,12 @@ const NewProperty = () => {
                   label="Latitude (Optional)"
                   type="number"
                   placeholder="e.g. 40.7128"
-                  step="any"
                 />
                 <CustomFormField
                   name="longitude"
                   label="Longitude (Optional)"
                   type="number"
                   placeholder="e.g. -74.0060"
-                  step="any"
                 />
               </div>
             </div>

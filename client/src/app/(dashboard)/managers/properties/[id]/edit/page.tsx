@@ -8,11 +8,7 @@ import { Form } from "@/components/ui/form";
 import { propertyEditSchema } from "@/lib/schemas";
 import { formatEnumString } from "@/lib/utils";
 import { AmenityEnum, HighlightEnum, PropertyTypeEnum } from "@/lib/constants";
-import {
-  useGetAuthUserQuery,
-  useGetPropertyQuery,
-  useUpdatePropertyMutation,
-} from "@/state/api";
+import { useGetPropertyQuery, useUpdatePropertyMutation } from "@/state/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
@@ -23,13 +19,20 @@ import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
+// Define error interface
+interface ApiError {
+  data?: {
+    message?: string;
+  };
+  message?: string;
+}
+
 const EditProperty = () => {
   const router = useRouter();
   const { id } = useParams();
   const propertyId = Number(id);
-  const { user } = useAuth(); // ✅ Get user from context
+  const { user } = useAuth();
 
-  const { data: authUser } = useGetAuthUserQuery();
   const { data: property, isLoading: propertyLoading } = useGetPropertyQuery(
     propertyId,
     {
@@ -146,10 +149,13 @@ const EditProperty = () => {
 
       toast.success("Property updated successfully!");
       router.push(`/managers/properties/${propertyId}`);
-    } catch (error: any) {
+    } catch (error) {
       console.error("❌ Error updating property:", error);
+      const apiError = error as ApiError;
       const errorMessage =
-        error?.data?.message || error?.message || "Failed to update property";
+        apiError?.data?.message ||
+        apiError?.message ||
+        "Failed to update property";
       toast.error(errorMessage);
     }
   };

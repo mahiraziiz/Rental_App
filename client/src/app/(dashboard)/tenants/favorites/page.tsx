@@ -4,27 +4,19 @@ import Card from "@/components/Card";
 import DashboardPropertyFilters from "@/components/DashboardPropertyFilters";
 import Header from "@/components/Header";
 import Loading from "@/components/Loading";
-import {
-  useGetAuthUserQuery,
-  useGetPropertiesQuery,
-  useGetTenantQuery,
-} from "@/state/api";
+import { useGetPropertiesQuery, useGetTenantQuery } from "@/state/api";
 import { useAppSelector } from "@/state/redux";
 import React from "react";
 import { useAuth } from "@/context/AuthContext";
 
 const Favorites = () => {
-  const { user } = useAuth(); // ✅ Get user from context
-  const { data: authUser } = useGetAuthUserQuery();
+  const { user } = useAuth();
   const filters = useAppSelector((state) => state.global.filters);
-  const isTenant = user?.role?.toLowerCase() === "tenant"; // ✅ Use user from context
+  const isTenant = user?.role?.toLowerCase() === "tenant";
 
-  const { data: tenant } = useGetTenantQuery(
-    user?.id || "",
-    {
-      skip: !user?.id || !isTenant,
-    },
-  );
+  const { data: tenant } = useGetTenantQuery(user?.id || "", {
+    skip: !user?.id || !isTenant,
+  });
 
   const {
     data: favoriteProperties,

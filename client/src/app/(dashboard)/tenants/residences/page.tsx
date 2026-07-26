@@ -3,17 +3,12 @@
 import Card from "@/components/Card";
 import Header from "@/components/Header";
 import Loading from "@/components/Loading";
-import {
-  useGetAuthUserQuery,
-  useGetCurrentResidencesQuery,
-  useGetTenantQuery,
-} from "@/state/api";
+import { useGetCurrentResidencesQuery, useGetTenantQuery } from "@/state/api";
 import React from "react";
 import { useAuth } from "@/context/AuthContext";
 
 const Residences = () => {
   const { user } = useAuth();
-  const { data: authUser } = useGetAuthUserQuery();
   const isTenant = user?.role?.toLowerCase() === "tenant";
 
   const { data: tenant } = useGetTenantQuery(user?.id || "", {

@@ -3,9 +3,10 @@ import { Bath, Bed, Heart, House, Star, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useState } from "react";
+import { Property } from "@/types/prismaTypes";
 
 interface CardProps {
-  property: any;
+  property: Property;
   isFavorite: boolean;
   onFavoriteToggle: () => void;
   showFavoriteButton?: boolean;
@@ -89,10 +90,10 @@ const Card = ({
           <div className="flex items-center mb-2">
             <Star className="w-4 h-4 text-yellow-400 mr-1" />
             <span className="font-semibold">
-              {property.averageRating.toFixed(1)}
+              {property.averageRating?.toFixed(1) || "0.0"}
             </span>
             <span className="text-gray-600 ml-1">
-              ({property.numberOfReviews} Reviews)
+              ({property.numberOfReviews || 0} Reviews)
             </span>
           </div>
           <p className="text-lg font-bold mb-3">

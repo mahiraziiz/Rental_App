@@ -8,12 +8,20 @@ import {
 } from "@/components/ui/dialog";
 import { Form } from "@/components/ui/form";
 import { ApplicationFormData, applicationSchema } from "@/lib/schemas";
-import { useCreateApplicationMutation, useGetAuthUserQuery } from "@/state/api";
+import { useCreateApplicationMutation } from "@/state/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import React from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+
+// Define error interface
+interface ApiError {
+  data?: {
+    message?: string;
+  };
+  message?: string;
+}
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -28,7 +36,6 @@ const ApplicationModal = ({
 }: ApplicationModalProps) => {
   const [createApplication] = useCreateApplicationMutation();
   const { user } = useAuth();
-  const { data: authUser } = useGetAuthUserQuery();
 
   const form = useForm<ApplicationFormData>({
     resolver: zodResolver(applicationSchema),
@@ -59,11 +66,12 @@ const ApplicationModal = ({
       toast.success("Application submitted successfully!");
       form.reset();
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Application submission failed", error);
+      const apiError = error as ApiError;
       const errorMessage =
-        error?.data?.message ||
-        error?.message ||
+        apiError?.data?.message ||
+        apiError?.message ||
         "Failed to submit application";
       toast.error(errorMessage);
     }

@@ -3,9 +3,10 @@ import { Bath, Bed, Heart, House, Star, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useState } from "react";
+import { Property } from "@/types/prismaTypes";
 
 interface CardCompactProps {
-  property: any;
+  property: Property;
   isFavorite: boolean;
   onFavoriteToggle: () => void;
   showFavoriteButton?: boolean;
@@ -89,10 +90,10 @@ const CardCompact = ({
           <div className="flex text-sm items-center">
             <Star className="w-3 h-3 text-yellow-400 mr-1" />
             <span className="font-semibold">
-              {property.averageRating.toFixed(1)}
+              {property.averageRating?.toFixed(1) || "0.0"}
             </span>
             <span className="text-gray-600 ml-1">
-              ({property.numberOfReviews})
+              ({property.numberOfReviews || 0})
             </span>
           </div>
         </div>
