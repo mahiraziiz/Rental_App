@@ -2,9 +2,7 @@ import dotenv from "dotenv";
 import path from "path";
 
 // Load environment variables FIRST, before any other imports
-dotenv.config({
-  path: path.resolve(__dirname, "../.env"),
-});
+dotenv.config();
 
 import app from "./server";
 import prisma from "./db/index";
