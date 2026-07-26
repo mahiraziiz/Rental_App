@@ -11,7 +11,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  useGetAuthUserQuery,
   useGetLeasesQuery,
   useGetPaymentsQuery,
   useGetPropertyQuery,
@@ -247,18 +246,20 @@ const BillingHistory = ({ payments }: { payments: Payment[] }) => {
 
 const Residence = () => {
   const { id } = useParams();
-  const { user } = useAuth(); 
-  const { data: authUser } = useGetAuthUserQuery();
+  const { user } = useAuth();
   const {
     data: property,
     isLoading: propertyLoading,
     error: propertyError,
   } = useGetPropertyQuery(Number(id));
 
-  const { data: leases, isLoading: leasesLoading } = useGetLeasesQuery(
-    parseInt(user?.id || "0"), 
-    { skip: !user?.id },
-  );
+  // ✅ FIX: Convert userId to string or pass undefined
+  const userId = user?.id ? String(user.id) : undefined;
+
+  const { data: leases, isLoading: leasesLoading } = useGetLeasesQuery(userId, {
+    skip: !userId,
+  });
+
   const { data: payments, isLoading: paymentsLoading } = useGetPaymentsQuery(
     leases?.[0]?.id || 0,
     { skip: !leases?.[0]?.id },
@@ -279,7 +280,7 @@ const Residence = () => {
             <ResidenceCard
               property={property}
               currentLease={currentLease}
-              tenantName={authUser?.userInfo?.name || user?.name}
+              tenantName={user?.name || "Tenant"}
             />
           )}
           <PaymentMethod />

@@ -17,9 +17,9 @@ import { useAuth } from "@/context/AuthContext";
 
 const Applications = () => {
   const { user } = useAuth(); // ✅ Get user from context
-  const { data: authUser, isLoading: authLoading } = useGetAuthUserQuery();
+  const { isLoading: authLoading } = useGetAuthUserQuery();
   const [activeTab, setActiveTab] = useState("all");
-  const isManager = user?.role?.toLowerCase() === "manager"; // ✅ Use user from context
+  const isManager = user?.role?.toLowerCase() === "manager";
 
   const {
     data: applications,
@@ -27,11 +27,11 @@ const Applications = () => {
     isError,
   } = useGetApplicationsQuery(
     {
-      userId: user?.id, 
+      userId: user?.id,
       userType: "manager",
     },
     {
-      skip: !isManager || !user?.id, 
+      skip: !isManager || !user?.id,
     },
   );
   const [updateApplicationStatus] = useUpdateApplicationStatusMutation();
@@ -146,8 +146,8 @@ const Applications = () => {
                               propertyName: application.property?.name,
                               tenantName: application.tenant?.name,
                               tenantEmail: application.tenant?.email,
-                              managerName:
-                                authUser?.userInfo?.name || user?.name,
+                              // ✅ FIX: Use user directly instead of authUser?.userInfo
+                              managerName: user?.name || "Manager",
                               status: application.status,
                               startDate: application.lease?.startDate,
                               endDate: application.lease?.endDate,

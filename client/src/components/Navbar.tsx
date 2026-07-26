@@ -1,4 +1,3 @@
-// client/src/components/Navbar.tsx
 "use client";
 
 import { NAVBAR_HEIGHT } from "@/lib/constants";
@@ -28,21 +27,39 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { SidebarTrigger } from "./ui/sidebar";
 import { toast } from "sonner";
 
+// Define User type
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  userRole?: string;
+  userInfo?: {
+    name: string;
+    email: string;
+    image?: string;
+    phoneNumber?: string;
+  };
+}
+
 const Navbar = () => {
-  const { data: authUser, refetch } = useGetAuthUserQuery();
+  const { data: authUser, refetch } = useGetAuthUserQuery() as {
+    data: User | undefined;
+    refetch: () => void;
+  };
   const { logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const userRole = authUser?.userRole?.toLowerCase();
+  const userRole = authUser?.role?.toLowerCase();
 
   const { data: applications } = useGetApplicationsQuery(
     {
-      userId: authUser?.cognitoInfo?.userId,
+      userId: authUser?.id,
       userType: userRole === "manager" ? "manager" : "tenant",
     },
     {
-      skip: !userRole || !authUser?.cognitoInfo?.userId,
+      skip: !userRole || !authUser?.id,
     },
   );
 
@@ -79,14 +96,12 @@ const Navbar = () => {
   const isDashboardPage =
     pathname.includes("/managers") || pathname.includes("/tenants");
 
-  // ✅ FIXED LOGOUT HANDLER
   const handleSignOut = async () => {
-    if (isLoggingOut) return; // Prevent multiple clicks
+    if (isLoggingOut) return;
 
     try {
       setIsLoggingOut(true);
       await logout();
-      // Refetch auth user to ensure state is cleared
       await refetch();
       toast.success("Logged out successfully");
     } catch (error) {
@@ -136,13 +151,13 @@ const Navbar = () => {
               className="md:ml-4 bg-primary-50 text-primary-700 hover:bg-secondary-500 hover:text-primary-50"
               onClick={() =>
                 router.push(
-                  authUser.userRole?.toLowerCase() === "manager"
+                  authUser.role?.toLowerCase() === "manager"
                     ? "/managers/newproperty"
                     : "/search",
                 )
               }
             >
-              {authUser.userRole?.toLowerCase() === "manager" ? (
+              {authUser.role?.toLowerCase() === "manager" ? (
                 <>
                   <Plus className="h-4 w-4" />
                   <span className="hidden md:block ml-2">Add New Property</span>
@@ -225,11 +240,11 @@ const Navbar = () => {
                   <Avatar>
                     <AvatarImage src={authUser.userInfo?.image} />
                     <AvatarFallback className="bg-primary-600">
-                      {authUser.userRole?.[0].toUpperCase()}
+                      {authUser.role?.[0].toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
                   <p className="text-primary-200 hidden md:block">
-                    {authUser.userInfo?.name}
+                    {authUser.userInfo?.name || authUser.name}
                   </p>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="bg-white text-primary-700">
@@ -237,7 +252,8 @@ const Navbar = () => {
                     className="cursor-pointer hover:bg-primary-700! hover:text-primary-100! font-bold"
                     onClick={() =>
                       router.push(
-                        authUser.userRole?.toLowerCase() === "manager"
+                        // ✅ FIX: Use 'role' instead of 'userRole'
+                        authUser.role?.toLowerCase() === "manager"
                           ? "/managers/properties"
                           : "/tenants/favorites",
                         { scroll: false },
@@ -251,7 +267,7 @@ const Navbar = () => {
                     className="cursor-pointer hover:bg-primary-700! hover:text-primary-100!"
                     onClick={() =>
                       router.push(
-                        `/${authUser.userRole?.toLowerCase()}s/settings`,
+                        `/${authUser.role?.toLowerCase()}s/settings`,
                         { scroll: false },
                       )
                     }

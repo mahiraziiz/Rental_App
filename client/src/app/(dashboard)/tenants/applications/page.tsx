@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const Applications = () => {
   const { user } = useAuth(); // ✅ Get user from context
-  const { data: authUser, isLoading: authLoading } = useGetAuthUserQuery();
+  const { isLoading: authLoading } = useGetAuthUserQuery();
   const isTenant = user?.role?.toLowerCase() === "tenant";
   const tenantId = user?.id;
 
@@ -84,8 +84,9 @@ const Applications = () => {
                     downloadAgreementFile({
                       agreementId: String(application.id),
                       propertyName: application.property?.name,
-                      tenantName: authUser?.userInfo?.name || user?.name,
-                      tenantEmail: authUser?.userInfo?.email || user?.email,
+                      // ✅ FIX: Use user directly instead of authUser?.userInfo
+                      tenantName: user?.name || "Tenant",
+                      tenantEmail: user?.email || "",
                       managerName: application.manager?.name,
                       status: application.status,
                       startDate: application.lease?.startDate,
