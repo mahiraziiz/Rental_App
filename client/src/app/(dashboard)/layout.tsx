@@ -10,6 +10,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FiltersState, setFilters } from "@/state";
 import { useAppDispatch } from "@/state/redux";
 
+interface AppSidebarProps {
+  userType: "manager" | "tenant" | null;
+}
+
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { data: authUser, isLoading: authLoading } = useGetAuthUserQuery();
   const router = useRouter();
@@ -17,7 +21,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
   const [isLoading, setIsLoading] = useState(true);
-  const userRole = authUser?.userRole?.toLowerCase();
+
+  const userRole = authUser?.role?.toLowerCase();
   const sidebarUserType: AppSidebarProps["userType"] | null =
     userRole === "manager"
       ? "manager"
@@ -98,6 +103,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (authUser) {
+      // ✅ FIX: Use 'role' instead of 'userRole'
       if (
         (userRole === "manager" && pathname.startsWith("/tenants")) ||
         (userRole === "tenant" && pathname.startsWith("/managers"))
@@ -115,7 +121,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   }, [authUser, router, pathname, userRole]);
 
   if (authLoading || isLoading) return <>Loading...</>;
-  if (!authUser?.userRole || !sidebarUserType) return null;
+
+  if (!authUser?.role || !sidebarUserType) return null;
 
   return (
     <SidebarProvider>
