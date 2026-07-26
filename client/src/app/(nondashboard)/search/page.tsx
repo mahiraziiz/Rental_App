@@ -3,14 +3,15 @@
 import { NAVBAR_HEIGHT } from "@/lib/constants";
 import { useAppDispatch, useAppSelector } from "@/state/redux";
 import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import FiltersBar from "./FiltersBar";
 import FiltersFull from "./FiltersFull";
 import { FiltersState, setFilters } from "@/state";
 import Map from "./Map";
 import Listings from "./Listings";
 
-const SearchPage = () => {
+// Inner component that uses useSearchParams
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
   const isFiltersFullOpen = useAppSelector(
@@ -30,11 +31,9 @@ const SearchPage = () => {
       "coordinates",
     ];
 
-    // Check if there are ANY search params at all
     const hasSearchParams = searchParams.toString().length > 0;
 
     if (!hasSearchParams) {
-      // No search params - reset to defaults to show ALL properties
       dispatch(
         setFilters({
           location: "",
@@ -51,7 +50,6 @@ const SearchPage = () => {
       return;
     }
 
-    // Parse URL params
     const initialFilters = Array.from(searchParams.entries()).reduce<
       Partial<FiltersState>
     >((acc, [key, value]) => {
@@ -118,6 +116,13 @@ const SearchPage = () => {
       </div>
     </div>
   );
-};
+}
 
-export default SearchPage;
+// Main component with Suspense boundary
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div>Loading search...</div>}>
+      <SearchPageContent />
+    </Suspense>
+  );
+}

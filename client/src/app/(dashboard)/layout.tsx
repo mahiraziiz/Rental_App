@@ -4,7 +4,7 @@ import Navbar from "@/components/Navbar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import Sidebar from "@/components/AppSidebar";
 import { NAVBAR_HEIGHT } from "@/lib/constants";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useGetAuthUserQuery } from "@/state/api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FiltersState, setFilters } from "@/state";
@@ -14,7 +14,8 @@ interface AppSidebarProps {
   userType: "manager" | "tenant" | null;
 }
 
-const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
+// Inner component that uses useSearchParams
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { data: authUser, isLoading: authLoading } = useGetAuthUserQuery();
   const router = useRouter();
   const pathname = usePathname();
@@ -103,7 +104,6 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (authUser) {
-      // ✅ FIX: Use 'role' instead of 'userRole'
       if (
         (userRole === "manager" && pathname.startsWith("/tenants")) ||
         (userRole === "tenant" && pathname.startsWith("/managers"))
@@ -137,6 +137,17 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
       </div>
     </SidebarProvider>
   );
-};
+}
 
-export default DashboardLayout;
+// Main component with Suspense boundary
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </Suspense>
+  );
+}
