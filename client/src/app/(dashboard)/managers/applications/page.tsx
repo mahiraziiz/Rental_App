@@ -12,13 +12,16 @@ import {
 } from "@/state/api";
 import { CircleCheckBig, Download, File, Hospital } from "lucide-react";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useSearchParams } from "next/navigation";
 
-const Applications = () => {
-  const { user } = useAuth(); // ✅ Get user from context
+// Inner component that uses useSearchParams
+function ApplicationsContent() {
+  const { user } = useAuth();
   const { isLoading: authLoading } = useGetAuthUserQuery();
-  const [activeTab, setActiveTab] = useState("all");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams?.get("tab") || "all");
   const isManager = user?.role?.toLowerCase() === "manager";
 
   const {
@@ -146,7 +149,6 @@ const Applications = () => {
                               propertyName: application.property?.name,
                               tenantName: application.tenant?.name,
                               tenantEmail: application.tenant?.email,
-                              // ✅ FIX: Use user directly instead of authUser?.userInfo
                               managerName: user?.name || "Manager",
                               status: application.status,
                               startDate: application.lease?.startDate,
@@ -197,6 +199,13 @@ const Applications = () => {
       </Tabs>
     </div>
   );
-};
+}
 
-export default Applications;
+// Main page component with Suspense boundary
+export default function ApplicationsPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ApplicationsContent />
+    </Suspense>
+  );
+}
